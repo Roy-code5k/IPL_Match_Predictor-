@@ -3,6 +3,10 @@
 Predicting IPL match winners using historical data, engineered cricket features, and machine learning — delivered as an interactive Streamlit app.
 
 > **Status:** 🚧 In development — see [Project Status](#-project-status) below.
+>
+> Deliveries Dataset Notebook Link - https://colab.research.google.com/drive/1GWo_tiz41R_kuatZS6lSi3WlwsU1ElzV#scrollTo=c_cQvCh0SV1A
+>
+> Matches Dataset Notebook Link - https://colab.research.google.com/drive/19ptw6ECy6CwaFV5GSQMMdIiqzOUGLYXe#scrollTo=482dc108
 
 ---
 
