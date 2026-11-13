@@ -1,0 +1,40 @@
+{
+  "cleaning_version": "1.0.0",
+  "input": {
+    "file": "data/raw/matches.csv",
+    "sha256": "8A0394246D2A76B44526565F2245D8F4FEFF91BABE57AB16676A2C3D67AA0846",
+    "rows": 1095
+  },
+  "output": {
+    "file": "data/processed/matches_clean.csv",
+    "sha256": "37DA145431129F79E0DA499FCF4708E0D679D6A0F674FE94E88FA08B49C8A232",
+    "rows": 1090,
+    "columns": [
+      "match_id",
+      "date",
+      "season",
+      "season_raw",
+      "match_type",
+      "is_playoff",
+      "venue",
+      "city",
+      "country",
+      "venue_raw",
+      "team1",
+      "team2",
+      "toss_winner",
+      "toss_decision",
+      "winner",
+      "team1_win",
+      "result",
+      "result_margin",
+      "super_over",
+      "method",
+      "team1_raw",
+      "team2_raw"
+    ],
+    "first_date": "2008-04-18",
+    "last_date": "2024-05-26"
+  },
+  "pandas_version": "3.1.1"
+}
