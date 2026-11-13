@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Raw data is downloaded from Kaggle, not committed (see docs/data_source.md)
+data/raw/*.csv
+data/raw/*.zip
+
+# Frontend
+app/frontend/node_modules/
+app/frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
