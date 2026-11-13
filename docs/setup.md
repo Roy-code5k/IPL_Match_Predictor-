@@ -30,7 +30,19 @@ python -m pytest                  # runs all tests
 
 Both must report success before you move on. A hash mismatch means you have a different dataset version.
 
-## 4. Frontend (optional at this stage)
+## 4. Build the processed data
+
+Processed CSVs are not committed. Rebuild them from the raw files:
+
+```powershell
+python -m src.data.cleaning       # writes data/processed/matches_clean.csv and manifest.json
+python -m src.features.builder    # writes data/processed/features.csv and features_manifest.json
+git status                        # both manifests should show no changes
+```
+
+Both scripts are deterministic. If `git status` shows a changed manifest, compare the `sha256` values: your output differs from the committed version, often because of a different pandas version (see `requirements.txt`).
+
+## 5. Frontend (optional at this stage)
 
 ```powershell
 cd app\frontend
