@@ -1,0 +1,62 @@
+{
+  "feature_version": "1.0.0",
+  "input": {
+    "file": "data/processed/matches_clean.csv",
+    "sha256": "37DA145431129F79E0DA499FCF4708E0D679D6A0F674FE94E88FA08B49C8A232"
+  },
+  "output": {
+    "file": "data/processed/features.csv",
+    "sha256": "B2A52C7C8C8B33740ED3DB5CE07A4BE45C6B745E50AD34E72CB07B430E9A93C2",
+    "rows": 1090
+  },
+  "feature_columns": [
+    "is_playoff",
+    "is_neutral_country",
+    "home_a",
+    "home_b",
+    "toss_won_a",
+    "toss_field",
+    "a_bats_first",
+    "elo_a",
+    "elo_b",
+    "elo_diff",
+    "elo_prob_a",
+    "win_rate_a",
+    "win_rate_b",
+    "win_rate_diff",
+    "log_played_a",
+    "log_played_b",
+    "form5_a",
+    "form5_b",
+    "form5_diff",
+    "form10_a",
+    "form10_b",
+    "form10_diff",
+    "season_win_rate_a",
+    "season_win_rate_b",
+    "season_win_rate_diff",
+    "season_played_a",
+    "season_played_b",
+    "prev_season_win_rate_a",
+    "prev_season_win_rate_b",
+    "h2h_win_rate_a",
+    "h2h_played",
+    "venue_win_rate_a",
+    "venue_win_rate_b",
+    "venue_played_a",
+    "venue_played_b",
+    "venue_chase_rate",
+    "batting_order_rate_a",
+    "recent_chase_rate"
+  ],
+  "target": "team1_win",
+  "constants": {
+    "elo_start": 1500.0,
+    "elo_k": 20.0,
+    "elo_season_carry": 0.75,
+    "prior_strength": 5.0,
+    "venue_prior_strength": 10.0,
+    "recent_chase_window": 60
+  },
+  "same_day_policy": "features use only matches on strictly earlier dates"
+}

@@ -59,6 +59,28 @@ ACTIVE_TEAMS: frozenset[str] = frozenset({
 })
 
 
+# Franchise -> home cities (primary home ground's city). Fixed domain
+# knowledge, not learned from results, so it cannot leak outcomes. Secondary
+# or one-off "home" venues are deliberately not listed.
+HOME_CITIES: dict[str, frozenset[str]] = {
+    "Chennai Super Kings": frozenset({"Chennai"}),
+    "Deccan Chargers": frozenset({"Hyderabad"}),
+    "Delhi Capitals": frozenset({"Delhi"}),
+    "Gujarat Lions": frozenset({"Rajkot"}),
+    "Gujarat Titans": frozenset({"Ahmedabad"}),
+    "Kochi Tuskers Kerala": frozenset({"Kochi"}),
+    "Kolkata Knight Riders": frozenset({"Kolkata"}),
+    "Lucknow Super Giants": frozenset({"Lucknow"}),
+    "Mumbai Indians": frozenset({"Mumbai"}),
+    "Pune Warriors": frozenset({"Pune"}),
+    "Punjab Kings": frozenset({"Mohali", "Mullanpur"}),
+    "Rajasthan Royals": frozenset({"Jaipur"}),
+    "Rising Pune Supergiant": frozenset({"Pune"}),
+    "Royal Challengers Bengaluru": frozenset({"Bengaluru"}),
+    "Sunrisers Hyderabad": frozenset({"Hyderabad"}),
+}
+
+
 class UnknownNameError(ValueError):
     """Raised when a team or venue name has no mapping."""
 
