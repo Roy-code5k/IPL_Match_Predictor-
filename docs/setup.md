@@ -1,0 +1,41 @@
+# Local setup
+
+Tested on Windows 11 with Python 3.13.14 and Node.js (for the frontend). Run every command from the project root unless a step says otherwise.
+
+## 1. Python environment
+
+PowerShell:
+
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If PowerShell blocks `Activate.ps1`, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once. Alternatively, skip activation and call `.venv\Scripts\python.exe` directly.
+
+Git Bash / macOS / Linux: use `python3 -m venv .venv` and `source .venv/Scripts/activate` (Windows) or `source .venv/bin/activate` (macOS/Linux).
+
+## 2. Raw data
+
+Download `matches.csv` and `deliveries.csv` as described in [data_source.md](data_source.md) and place them in `data/raw/`.
+
+## 3. Verify the data
+
+```powershell
+python -m src.data.inspect_raw   # checks hashes and schema, rewrites reports/data_quality_report.md
+python -m pytest                  # runs all tests
+```
+
+Both must report success before you move on. A hash mismatch means you have a different dataset version.
+
+## 4. Frontend (optional at this stage)
+
+```powershell
+cd app\frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+Open the URL Vite prints (normally http://localhost:5173/). The prediction form validates input but is not yet connected to a model. See `app/frontend/README.md`.

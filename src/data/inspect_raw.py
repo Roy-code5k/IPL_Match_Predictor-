@@ -179,12 +179,30 @@ def inspect_deliveries(deliveries: pd.DataFrame, matches: pd.DataFrame) -> tuple
         failures.append(f"{len(orphan)} delivery match ids are missing from matches.csv")
     covered = matches["id"].isin(set(deliveries["match_id"])).sum()
     innings = deliveries["inning"].value_counts().sort_index()
+
+    # The team batting in inning 1 must agree with the recorded toss outcome.
+    bat_first = (
+        deliveries[deliveries["inning"] == "1"]
+        .drop_duplicates("match_id")
+        .set_index("match_id")["batting_team"]
+    )
+    m = matches.assign(bat_first=matches["id"].map(bat_first)).dropna(subset=["bat_first"])
+    toss_consistent = ((m["toss_winner"] == m["bat_first"]) == (m["toss_decision"] == "bat"))
+    if not toss_consistent.all():
+        failures.append(f"{int((~toss_consistent).sum())} matches where the toss decision contradicts the batting order")
+    team1_bats_first = int((m["team1"] == m["bat_first"]).sum())
     out = ["\n\n## deliveries.csv overview\n", md_table(["Check", "Value"], [
         ["Rows / columns", f"{len(deliveries):,} / {deliveries.shape[1]}"],
         ["Matches covered", f"{covered:,} of {len(matches):,}"],
         ["Deliveries referencing an unknown match", len(orphan)],
         ["Rows per inning", ", ".join(f"{k}: {v:,}" for k, v in innings.items())],
+        ["Toss decision agrees with inning-1 batting team", f"{int(toss_consistent.sum()):,} of {len(m):,}"],
+        ["`team1` batted first", f"{team1_bats_first:,} of {len(m):,}"],
     ])]
+    out.append(
+        "\n\n`team1` is not consistently the side batting first, so the team1/team2 "
+        "order carries no fixed cricket meaning."
+    )
     out.append(
         "\n\nInnings 3-6 are super-over innings. `deliveries.csv` is for exploration only "
         "in this release and is not a model input."

@@ -138,5 +138,9 @@ Each raw season label covers exactly one calendar year, so the year of `date` is
 | Matches covered | 1,095 of 1,095 |
 | Deliveries referencing an unknown match | 0 |
 | Rows per inning | 1: 135,018, 2: 125,741, 3: 77, 4: 72, 5: 8, 6: 4 |
+| Toss decision agrees with inning-1 batting team | 1,095 of 1,095 |
+| `team1` batted first | 795 of 1,095 |
+
+`team1` is not consistently the side batting first, so the team1/team2 order carries no fixed cricket meaning.
 
 Innings 3-6 are super-over innings. `deliveries.csv` is for exploration only in this release and is not a model input.
