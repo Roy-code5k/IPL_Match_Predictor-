@@ -7,10 +7,10 @@
 | Students | Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122) |
 | Course stage | Semester 3, sections A and B |
 | Project type | Data science and machine learning, delivered as a web application |
-| Status | Phase 1 complete (2026-11-13). React frontend shell built early (Phase 6 UI, not connected to a model). Phase 2 not started. |
-| Next milestone | Phase 2: cleaning pipeline that writes `data/processed/`, then the EDA notebook |
+| Status | Phases 1 and 2 complete (2026-11-13). React frontend shell built early (Phase 6 UI, not connected to a model). |
+| Next milestone | Phase 3: leakage-safe historical feature builder with chronology tests |
 | Planning horizon | 12 weeks across 3 months, from 2026-09-27 |
-| Schedule | Week 7 of 12 on 2026-11-13. Data/ML work is about 5 weeks behind plan; see the catch-up note in section 6. |
+| Schedule | Week 7 of 12 on 2026-11-13. Data/ML work is about 3 weeks behind plan (Phase 3 was due in week 5); see the catch-up note in section 6. |
 | Repository | https://github.com/Roy-code5k/IPL_Match_Predictor- (push after every phase) |
 
 ## 1. Product summary
@@ -84,7 +84,9 @@ The intended application states are `CONFIGURED → FEATURES_READY → PREDICTIO
 
 ### Data source and target
 
-The source is the Kaggle **IPL Complete Dataset (2008–2024)** by `patrickb1912` (https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020), built from Cricsheet data. The URL slug still says 2008–2020; the supplied files run to the 2024 final. The version is pinned by SHA-256 hash rather than download date. Details are in [docs/data_source.md](docs/data_source.md), and every column is described in [docs/data_dictionary.md](docs/data_dictionary.md). Raw CSVs are not committed to git. `matches.csv` is the primary match-level file; `deliveries.csv` is optional for exploration. The binary target is whether Team A wins (`1`) or Team B wins (`0`). Matches without a valid winner are excluded from supervised training and evaluation.
+The source is the Kaggle **IPL Complete Dataset (2008–2024)** by `patrickb1912` (https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020), built from Cricsheet data. The URL slug still says 2008–2020; the supplied files run to the 2024 final. The version is pinned by SHA-256 hash rather than download date. Details are in [docs/data_source.md](docs/data_source.md), and every column is described in [docs/data_dictionary.md](docs/data_dictionary.md). Raw CSVs are not committed to git. The dataset owner is known to the team, so licensing is not a concern; the final report credits the publisher and Cricsheet.
+
+The cleaned dataset is `data/processed/matches_clean.csv` (1,090 decided matches), produced by `python -m src.data.cleaning` under the rules in [docs/cleaning_rules.md](docs/cleaning_rules.md). EDA results are summarised in [reports/eda_findings.md](reports/eda_findings.md). `matches.csv` is the primary match-level file; `deliveries.csv` is optional for exploration. The binary target is whether Team A wins (`1`) or Team B wins (`0`). Matches without a valid winner are excluded from supervised training and evaluation.
 
 ### Raw dataset inventory (initial inspection, 2026-09-28)
 
@@ -121,7 +123,7 @@ Candidate inputs are match date/season, teams, venue/city, toss winner, toss dec
 
 1. Establish a simple baseline (for example, logistic regression and/or a toss-winner heuristic).
 2. Train Random Forest and XGBoost with a fixed seed and recorded package versions.
-3. Use an older-period training set and a later-period held-out test as the primary estimate of future-match performance. Use validation data for tuning; keep the final test untouched until selection is complete.
+3. **Time-based split (decided 2026-11-13; no random split).** Proposed periods: train 2008–2021 (872 matches), validate 2022 (74), test 2023–2024 (144). Use validation data for tuning; keep the final test untouched until selection is complete. Confirm the periods at the start of Phase 4.
 4. Report accuracy, F1, ROC-AUC, confusion matrix, training time, and performance differences from baseline. Inspect errors by team and season.
 5. Review probability calibration before attaching confidence language. A gap below 10 percentage points between the two probabilities is the proposed low-confidence flag; other thresholds need to be defined and documented.
 6. Save the chosen estimator, fitted preprocessing, feature specification, historical snapshot/cutoff, metrics, and version as one compatible release set. Retain previous releases for rollback.
@@ -168,12 +170,12 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 | Phase | Status | Evidence |
 |---|---|---|
 | 1. Setup and data inspection | ✅ Complete 2026-11-13 | `requirements.txt`, `docs/setup.md`, `docs/data_source.md`, `docs/data_dictionary.md`, `src/data/inspect_raw.py`, `reports/data_quality_report.md`, `tests/test_raw_data.py` (5 passing) |
-| 2. Cleaning and EDA | Not started | `src/data/cleaning.py` only loads the CSV and prints its shape |
+| 2. Cleaning and EDA | ✅ Complete 2026-11-13 | `src/data/mappings.py`, `src/data/cleaning.py`, `docs/cleaning_rules.md`, `reports/cleaning_report.md`, `data/processed/manifest.json`, `notebooks/01_eda.ipynb`, `reports/figures/`, `reports/eda_findings.md`, `tests/test_cleaning.py` (22 tests passing in total) |
 | 3–5. Features, training, evaluation | Not started | — |
 | 6. API and core UI | UI shell done; API not started | `app/frontend/` validates the match form and shows "ML model not connected"; `app/backend/` is empty |
 | 7–8. Persistence, polish, handoff | Not started | — |
 
-**Catch-up note:** with 6 weeks left, prioritise the data → features → model path (Phases 2–5). Keep EDA focused on the Must-have findings. The frontend should not grow further until a model artifact exists.
+**Catch-up note:** with 6 weeks left, prioritise the features → model path (Phases 3–5) and aim for a first baseline model next. The frontend should not grow further until a model artifact exists. Phase 3 priorities from EDA: recent-form and season-to-date features, a team-swap augmentation, venue chasing rate × toss decision, and defaults for teams with little history.
 
 ### Final definition of done
 
@@ -189,12 +191,12 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 
 | Decision or risk | Why it matters | Resolve by |
 |---|---|---|
-| **Dataset provenance.** ~~URL and version~~ recorded in `docs/data_source.md`. **Still open:** copy the licence shown on the Kaggle page. | Reproducibility and attribution require an identifiable source. | Phase 2 |
-| **README vs PROJECT.md conflict.** The GitHub `README.md` describes a Streamlit app and an 80/20 random split. This file specifies React + FastAPI (frontend already built) and a chronological held-out test. Agree on one design, then update the README. | Assessors read the README first; a random split would leak future matches into training. | Phase 2 |
+| ~~**Dataset provenance.**~~ **Resolved 2026-11-13:** source and hash-pinned version in `docs/data_source.md`; owner known to the team, licence not a concern. | Reproducibility and attribution require an identifiable source. | Done |
+| **README vs PROJECT.md: UI stack.** The split is resolved (time-based; README updated). **Still open:** the README describes a Streamlit app, while this file specifies React + FastAPI and the React frontend is already built. Agree on one, then update whichever document is wrong. | Assessors read the README first. | Before Phase 6 |
 | **Prediction date and historical cutoff.** Decide how a scenario identifies its match date, since the API currently supplies only `season`. A 2024 scenario must not use results from later 2024 matches. | Season alone is insufficient to build strictly prior-match features for an in-season historical scenario. | Before Phase 3 |
-| **Season normalization.** Map mixed labels such as `2007/08` to a documented canonical season while preserving the raw value. **Recommended:** canonical season = year of `date` (verified one-to-one in Phase 1). | The UI and chronological analysis need consistent seasons. | Phase 2 |
+| ~~**Season normalization.**~~ **Resolved in Phase 2:** `season` = year of `date`; raw label kept as `season_raw`. | The UI and chronological analysis need consistent seasons. | Done |
 | **Same-day match ordering.** Decide how to handle multiple matches sharing a date when reliable match times are unavailable. **Recommended:** features use only matches on strictly earlier dates, so neither same-day match sees the other (272 dates affected). | An arbitrary order could leak a same-day result. | Before Phase 3 |
-| **Team identity mappings.** Document which renamed teams are the same franchise and which are separate franchises. **Proposed** in `docs/data_dictionary.md` (19 raw names → 15 franchises, matching the frontend); confirm and implement in cleaning. | Incorrect merging changes historical rates. | Phase 2 |
+| ~~**Team and venue mappings.**~~ **Resolved in Phase 2:** 19 raw team names → 15 franchises (renames only; matches the frontend) and 58 venue labels → 36 grounds (renamed grounds merged), all in `src/data/mappings.py`. The feature builder and API must import these mappings. | Incorrect merging changes historical rates. | Done |
 | **Supported seasons and venues.** Define accepted prediction inputs and behavior for categories absent from training. | Prevents invalid or misleading scenarios. | Before Phase 6 |
 | **MongoDB requirement.** Confirm whether final assessment requires database-backed logs or only the documented architecture. | Affects Week 11 scope and local setup. | Before Phase 7 |
 | **Confidence wording and thresholds.** Set labels after reviewing calibration and state that probability is an estimate. | Prevents overconfident presentation. | Phase 5 |
@@ -206,3 +208,5 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 - **2026-09-30 — Cleaning stub:** Added `src/data/cleaning.py`, which loads `matches.csv` and prints its shape and columns. No cleaning logic yet.
 - **2026-10-13 — Frontend shell:** Built the React + Vite frontend in `app/frontend/` (desktop-style UI, hand-calculated historical summaries, validated match form). It deliberately shows "ML model not connected" and calls no API.
 - **2026-11-13 — Phase 1 complete:** Initialised git on top of the existing GitHub history. Repaired the virtual environment and pinned packages in `requirements.txt`. Recorded the Kaggle source and hash-pinned version. Wrote the data dictionary and setup guide. Added a reproducible inspection script, report, and tests (5 passing). Recorded recommendations for season and same-day policies, and flagged the README conflict (Streamlit vs React + FastAPI).
+- **2026-11-13 — Decisions:** Evaluation uses a time-based split (README updated to match). Dataset licence is not a concern because the owner is known to the team.
+- **2026-11-13 — Phase 2 complete:** Added shared team and venue mappings (`src/data/mappings.py`) and a deterministic cleaning pipeline that writes `data/processed/matches_clean.csv` (1,090 matches), a hash manifest, and a cleaning report. Wrote `docs/cleaning_rules.md`. Added the executed EDA notebook (`notebooks/01_eda.ipynb`), 7 charts in `reports/figures/`, and `reports/eda_findings.md`. Key results: the toss winner wins 50.8% (coin-flip baseline); fielding first wins 53.9%; team strength swings strongly between seasons. Proposed split: train 2008–2021, validate 2022, test 2023–2024. 22 tests passing.

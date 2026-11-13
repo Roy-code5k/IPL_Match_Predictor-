@@ -49,7 +49,7 @@ Cricket analysts, fans, and students often rely on informal intuition to judge w
 - ✅ Team name normalization (handles renamed franchises, e.g. Delhi Daredevils → Delhi Capitals)
 - ✅ Toss and venue advantage encoding
 - ✅ Random Forest and XGBoost classifiers, compared against a simple baseline
-- ✅ Model evaluation with Accuracy, F1-score, and ROC-AUC on an 80/20 split
+- ✅ Model evaluation with Accuracy, F1-score, and ROC-AUC on a time-based split (train on older seasons, test on 2023–2024)
 - ✅ Interactive Streamlit app — pick two teams, a venue, and toss details, get a prediction with confidence
 - ✅ Team performance analysis notebook (win rates, venue trends, toss trends)
 
@@ -72,7 +72,7 @@ flowchart TD
     B --> C[Feature Engineering]
     C --> D[Historical Win-Rate Features]
     C --> E[Toss & Venue Features]
-    D --> F[Train/Test Split - 80/20]
+    D --> F[Time-based Split - train 2008-2021, validate 2022, test 2023-2024]
     E --> F
     F --> G[Model Training]
     G --> H[Random Forest]
@@ -135,7 +135,7 @@ The core file used is the match-level dataset (`matches.csv`), where each row is
    - Recent form (last 5 matches)
    - Toss winner / toss decision features
 3. **Modeling** — train a simple baseline (e.g. "always predict the toss winner"), a `RandomForestClassifier`, and an `XGBClassifier`.
-4. **Evaluation** — Accuracy, F1-score, ROC-AUC on an 80/20 train-test split, plus a chronological (train-on-older-seasons) sanity check against data leakage.
+4. **Evaluation** — Accuracy, F1-score, ROC-AUC on a time-based split: train on 2008–2021, tune on 2022, and test once on 2023–2024. A random split is not used, because it would let models learn from matches played after the ones they predict.
 5. **Deployment** — the best model and its preprocessing pipeline are serialized together and loaded by the Streamlit app.
 
 Full reasoning behind every design decision is in [`docs/`](./docs).
@@ -159,6 +159,14 @@ pip install -r requirements.txt
 ### Dataset Setup
 1. Download `matches.csv` (and optionally `deliveries.csv`) from [Kaggle](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020).
 2. Place them in `data/raw/`.
+3. Verify and clean them:
+   ```bash
+   python -m src.data.inspect_raw   # checks file hashes and schema
+   python -m src.data.cleaning      # writes data/processed/matches_clean.csv
+   python -m pytest                 # runs the test suite
+   ```
+
+Full setup steps are in [`docs/setup.md`](docs/setup.md).
 
 ## 🎮 Usage
 
@@ -191,7 +199,7 @@ Then open the local URL Streamlit prints (usually `http://localhost:8501`), sele
 ## 🗺 Project Status
 
 - [x] Project planning & full documentation (BRD, PRD, HLD/LLD, model card, ADRs)
-- [ ] **Month 1** — Data cleaning & exploratory data analysis
+- [x] **Month 1** — Data cleaning & exploratory data analysis (see [`reports/eda_findings.md`](reports/eda_findings.md))
 - [ ] **Month 2** — Feature engineering, model training & comparison
 - [ ] **Month 3** — Streamlit app, final report & demo
 

@@ -30,7 +30,7 @@ The raw CSVs are not committed to this repository. Download them from the Kaggle
 
 ## Licence and attribution
 
-The licence shown on the Kaggle page has not yet been recorded by the team. **To do:** check the Kaggle page's licence field and record it here. Cricsheet data is released under the Open Data Commons Attribution License (ODC-By). Credit both Cricsheet and the Kaggle publisher in the final report.
+The Kaggle dataset's owner is personally known to the team, and its use in this coursework is not a licensing concern (decided 2026-11-13). Credit the Kaggle publisher and the upstream Cricsheet data in the final report.
 
 ## Raw-data rules
 
