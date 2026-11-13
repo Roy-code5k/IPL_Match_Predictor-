@@ -7,10 +7,10 @@
 | Students | Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122) |
 | Course stage | Semester 3, sections A and B |
 | Project type | Data science and machine learning, delivered as a web application |
-| Status | Phases 1 and 2 complete (2026-11-13). React frontend shell built early (Phase 6 UI, not connected to a model). |
-| Next milestone | Phase 3: leakage-safe historical feature builder with chronology tests |
+| Status | Phases 1–3 complete (2026-11-13). React frontend shell built early (Phase 6 UI, not connected to a model). |
+| Next milestone | Phase 4: baselines (coin flip, Elo, logistic regression), Random Forest and XGBoost on the time-based split |
 | Planning horizon | 12 weeks across 3 months, from 2026-09-27 |
-| Schedule | Week 7 of 12 on 2026-11-13. Data/ML work is about 3 weeks behind plan (Phase 3 was due in week 5); see the catch-up note in section 6. |
+| Schedule | Week 7 of 12 on 2026-11-13. Data/ML work is about 2 weeks behind plan (Phase 4 was due in week 6); see the catch-up note in section 6. |
 | Repository | https://github.com/Roy-code5k/IPL_Match_Predictor- (push after every phase) |
 
 ## 1. Product summary
@@ -145,7 +145,7 @@ The Python environment uses Python 3.13 with pinned packages in `requirements.tx
 
 ### Initial API contract
 
-- `POST /api/v1/predict`: accepts `team1`, `team2`, `venue`, `season`, `toss_winner`, and `toss_decision`; returns predicted winner, probabilities for both teams, confidence, and model version.
+- `POST /api/v1/predict`: accepts `team1`, `team2`, `venue`, `season`, `toss_winner`, `toss_decision`, and optional `match_date`; returns predicted winner, probabilities for both teams, confidence, and model version.
 - `GET /api/v1/model-metrics`: returns the active model name/version and its evaluation metrics.
 - `GET /api/v1/health`: reports application and model-load status.
 - Errors use a stable code, clear message, and request ID. Invalid teams or inconsistent toss input are rejected before inference.
@@ -171,11 +171,12 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 |---|---|---|
 | 1. Setup and data inspection | ✅ Complete 2026-11-13 | `requirements.txt`, `docs/setup.md`, `docs/data_source.md`, `docs/data_dictionary.md`, `src/data/inspect_raw.py`, `reports/data_quality_report.md`, `tests/test_raw_data.py` (5 passing) |
 | 2. Cleaning and EDA | ✅ Complete 2026-11-13 | `src/data/mappings.py`, `src/data/cleaning.py`, `docs/cleaning_rules.md`, `reports/cleaning_report.md`, `data/processed/manifest.json`, `notebooks/01_eda.ipynb`, `reports/figures/`, `reports/eda_findings.md`, `tests/test_cleaning.py` (22 tests passing in total) |
-| 3–5. Features, training, evaluation | Not started | — |
+| 3. Historical features | ✅ Complete 2026-11-13 | `src/features/builder.py`, `docs/features.md`, `data/processed/features_manifest.json`, `HOME_CITIES` in `src/data/mappings.py`, `tests/test_features.py` (36 tests passing in total) |
+| 4–5. Training, evaluation | Not started | — |
 | 6. API and core UI | UI shell done; API not started | `app/frontend/` validates the match form and shows "ML model not connected"; `app/backend/` is empty |
 | 7–8. Persistence, polish, handoff | Not started | — |
 
-**Catch-up note:** with 6 weeks left, prioritise the features → model path (Phases 3–5) and aim for a first baseline model next. The frontend should not grow further until a model artifact exists. Phase 3 priorities from EDA: recent-form and season-to-date features, a team-swap augmentation, venue chasing rate × toss decision, and defaults for teams with little history.
+**Catch-up note:** with 6 weeks left, prioritise the model path (Phases 4–5) and train a first baseline model next. The frontend should not grow further until a model artifact exists. Single-feature AUCs are only 0.52–0.55 (see `docs/features.md`), so expect modest accuracy. Compare every model against the coin-flip and Elo baselines, and consider team-swap augmentation.
 
 ### Final definition of done
 
@@ -193,9 +194,9 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 |---|---|---|
 | ~~**Dataset provenance.**~~ **Resolved 2026-11-13:** source and hash-pinned version in `docs/data_source.md`; owner known to the team, licence not a concern. | Reproducibility and attribution require an identifiable source. | Done |
 | **README vs PROJECT.md: UI stack.** The split is resolved (time-based; README updated). **Still open:** the README describes a Streamlit app, while this file specifies React + FastAPI and the React frontend is already built. Agree on one, then update whichever document is wrong. | Assessors read the README first. | Before Phase 6 |
-| **Prediction date and historical cutoff.** Decide how a scenario identifies its match date, since the API currently supplies only `season`. A 2024 scenario must not use results from later 2024 matches. | Season alone is insufficient to build strictly prior-match features for an in-season historical scenario. | Before Phase 3 |
+| ~~**Prediction date and historical cutoff.**~~ **Resolved in Phase 3:** the API accepts an optional `match_date`. With a date, history stops before it; without one, a known season uses the pre-season view (history before its first match) and a future season uses all data. See `resolve_as_of` in `docs/features.md`. | Season alone is insufficient to build strictly prior-match features for an in-season historical scenario. | Done |
 | ~~**Season normalization.**~~ **Resolved in Phase 2:** `season` = year of `date`; raw label kept as `season_raw`. | The UI and chronological analysis need consistent seasons. | Done |
-| **Same-day match ordering.** Decide how to handle multiple matches sharing a date when reliable match times are unavailable. **Recommended:** features use only matches on strictly earlier dates, so neither same-day match sees the other (272 dates affected). | An arbitrary order could leak a same-day result. | Before Phase 3 |
+| ~~**Same-day match ordering.**~~ **Resolved in Phase 3:** features use only matches on strictly earlier dates, so neither same-day match sees the other (272 dates affected). Covered by tests. | An arbitrary order could leak a same-day result. | Done |
 | ~~**Team and venue mappings.**~~ **Resolved in Phase 2:** 19 raw team names → 15 franchises (renames only; matches the frontend) and 58 venue labels → 36 grounds (renamed grounds merged), all in `src/data/mappings.py`. The feature builder and API must import these mappings. | Incorrect merging changes historical rates. | Done |
 | **Supported seasons and venues.** Define accepted prediction inputs and behavior for categories absent from training. | Prevents invalid or misleading scenarios. | Before Phase 6 |
 | **MongoDB requirement.** Confirm whether final assessment requires database-backed logs or only the documented architecture. | Affects Week 11 scope and local setup. | Before Phase 7 |
@@ -210,3 +211,4 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 - **2026-11-13 — Phase 1 complete:** Initialised git on top of the existing GitHub history. Repaired the virtual environment and pinned packages in `requirements.txt`. Recorded the Kaggle source and hash-pinned version. Wrote the data dictionary and setup guide. Added a reproducible inspection script, report, and tests (5 passing). Recorded recommendations for season and same-day policies, and flagged the README conflict (Streamlit vs React + FastAPI).
 - **2026-11-13 — Decisions:** Evaluation uses a time-based split (README updated to match). Dataset licence is not a concern because the owner is known to the team.
 - **2026-11-13 — Phase 2 complete:** Added shared team and venue mappings (`src/data/mappings.py`) and a deterministic cleaning pipeline that writes `data/processed/matches_clean.csv` (1,090 matches), a hash manifest, and a cleaning report. Wrote `docs/cleaning_rules.md`. Added the executed EDA notebook (`notebooks/01_eda.ipynb`), 7 charts in `reports/figures/`, and `reports/eda_findings.md`. Key results: the toss winner wins 50.8% (coin-flip baseline); fielding first wins 53.9%; team strength swings strongly between seasons. Proposed split: train 2008–2021, validate 2022, test 2023–2024. 22 tests passing.
+- **2026-11-13 — Phase 3 complete:** Added the leakage-safe feature builder (`src/features/builder.py`). It produces 38 features: Elo with season regression, overall and recent form, season-to-date, head-to-head, venue record, home ground, toss and batting order, and venue/league chase rates, all smoothed toward 0.5 for small samples. Training and inference share `match_features`. Features use only strictly earlier dates (resolves same-day ordering), and `resolve_as_of` defines the prediction cutoff (resolves the cutoff decision; the API gains an optional `match_date`). Added `HOME_CITIES` to the mappings, `docs/features.md`, a hash manifest, and 14 leakage/chronology/symmetry tests (36 tests passing). Single-feature AUCs are 0.52–0.55, so pre-match signal is weak.
