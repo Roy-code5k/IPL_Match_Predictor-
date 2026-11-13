@@ -1,0 +1,10 @@
+# Pinned versions verified with Python 3.13.14 on 2026-11-13.
+# API packages (FastAPI, uvicorn) are added in Phase 6.
+pandas==3.1.1
+numpy==2.5.4
+scikit-learn==1.9.1
+xgboost==3.4.1
+matplotlib==3.11.2
+seaborn==0.13.2
+jupyter==1.1.1
+pytest==9.2.0
