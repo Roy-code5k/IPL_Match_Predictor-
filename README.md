@@ -1,12 +1,14 @@
 # 🏏 IPL Cricket Match Winner Prediction
 
-Predicting IPL match winners using historical data, engineered cricket features, and machine learning — delivered as an interactive Streamlit app.
+Predicting IPL match winners from historical data, leakage-safe engineered features, and machine learning, delivered as a React web app backed by a FastAPI service.
 
-> **Status:** 🚧 In development — see [Project Status](#-project-status) below.
+> **Status:** 🚧 In development. Data pipeline and features are complete; model training is next. See [Project Status](#-project-status).
 >
 > Deliveries Dataset Notebook Link - https://colab.research.google.com/drive/1GWo_tiz41R_kuatZS6lSi3WlwsU1ElzV#scrollTo=c_cQvCh0SV1A
 >
 > Matches Dataset Notebook Link - https://colab.research.google.com/drive/19ptw6ECy6CwaFV5GSQMMdIiqzOUGLYXe#scrollTo=482dc108
+
+Students: Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122). The detailed plan, decisions, and progress log are in [PROJECT.md](PROJECT.md).
 
 ---
 
@@ -21,7 +23,6 @@ Predicting IPL match winners using historical data, engineered cricket features,
 - [Dataset](#-dataset)
 - [Methodology](#-methodology)
 - [Getting Started](#-getting-started)
-- [Usage](#-usage)
 - [Model Performance](#-model-performance)
 - [Project Status](#-project-status)
 - [Limitations & Responsible Use](#-limitations--responsible-use)
@@ -33,192 +34,178 @@ Predicting IPL match winners using historical data, engineered cricket features,
 
 ## 🎯 Overview
 
-This project predicts the likely winner of an IPL (Indian Premier League) cricket match **before it starts**, using only information available pre-match: the two teams, the venue, the season, the toss winner, and the toss decision. It combines these with historical statistics — win rates, head-to-head records, venue trends — to produce a probability-based prediction.
+This project estimates the probability that each of two IPL (Indian Premier League) teams wins a match. The prediction is made **after the toss and before the first ball**, using only what is known at that point: the two teams, the venue, the season, the toss winner, and the toss decision. These inputs are combined with historical statistics computed only from earlier matches, such as team ratings, recent form, head-to-head records, and venue trends.
 
-Built as a complete, end-to-end data science project: data cleaning → feature engineering → model training & comparison → evaluation → an interactive Streamlit app.
+It is an end-to-end data science project: data cleaning → feature engineering → model training and comparison → evaluation → a web app.
 
 ## ❓ Problem Statement
 
-Cricket analysts, fans, and students often rely on informal intuition to judge which team is likely to win a match — inconsistent, hard to justify, and impossible to compare across people. This project replaces that with a consistent, data-driven, explainable prediction, built on over a decade of historical IPL match data.
+Cricket analysts, fans, and students often judge which team is likely to win by intuition, which is inconsistent, hard to justify, and impossible to compare across people. This project replaces that with a consistent, data-driven, explainable estimate built on 17 seasons of IPL match data.
 
-**This is an educational data science project — not a betting or gambling tool, and not a guarantee of real match outcomes.**
+**This is an educational data science project, not a betting or gambling tool, and not a guarantee of real match outcomes.**
 
 ## ✨ Features
 
-- ✅ Clean, leakage-safe historical win-rate features (overall, head-to-head, venue-specific, recent form)
-- ✅ Team name normalization (handles renamed franchises, e.g. Delhi Daredevils → Delhi Capitals)
-- ✅ Toss and venue advantage encoding
-- ✅ Random Forest and XGBoost classifiers, compared against a simple baseline
-- ✅ Model evaluation with Accuracy, F1-score, and ROC-AUC on a time-based split (train on older seasons, test on 2023–2024)
-- ✅ Interactive Streamlit app — pick two teams, a venue, and toss details, get a prediction with confidence
-- ✅ Team performance analysis notebook (win rates, venue trends, toss trends)
+✅ = done, 🔜 = planned
+
+- ✅ Reproducible cleaning: renamed franchises merged (e.g. Delhi Daredevils → Delhi Capitals), 58 venue labels mapped to 36 grounds, no-result matches removed
+- ✅ Exploratory analysis of seasons, teams, toss, venues, and class balance
+- ✅ 38 leakage-safe historical features: Elo rating, overall and recent form, season record, head-to-head, venue record, home ground, toss and batting order
+- ✅ Tests that fail if a future or same-day result leaks into a feature
+- ✅ React frontend with a validated match form (not yet connected to a model)
+- 🔜 Baselines, Random Forest, and XGBoost compared on a time-based split
+- 🔜 Evaluation with accuracy, F1, ROC-AUC, confusion matrix, and calibration
+- 🔜 FastAPI service returning both teams' probabilities, a confidence label, and the model version
 
 ## 🛠 Tech Stack
 
 | Category | Tools |
 |---|---|
-| Language | Python 3.x |
-| Data Processing | pandas, numpy |
-| Machine Learning | scikit-learn, XGBoost |
+| Language | Python 3.13 |
+| Data processing | pandas, NumPy |
+| Machine learning | scikit-learn, XGBoost |
 | Visualization | matplotlib, seaborn |
-| App / Deployment | Streamlit |
-| Model Persistence | joblib |
+| API | FastAPI (planned, Phase 6) |
+| Frontend | React 19 + Vite |
+| Testing | pytest |
 
 ## ⚙️ How It Works
 
 ```mermaid
 flowchart TD
-    A[Raw IPL Dataset - Kaggle CSVs] --> B[Data Cleaning & Normalization]
-    B --> C[Feature Engineering]
-    C --> D[Historical Win-Rate Features]
-    C --> E[Toss & Venue Features]
-    D --> F[Time-based Split - train 2008-2021, validate 2022, test 2023-2024]
-    E --> F
-    F --> G[Model Training]
-    G --> H[Random Forest]
-    G --> I[XGBoost]
-    H --> J[Evaluation & Comparison]
-    I --> J
-    J --> K[Final Model Selected]
-    K --> L[Streamlit App]
-    L --> M[User Inputs Match Config]
-    M --> N[Predicted Winner + Probability]
+    A[Raw IPL CSVs from Kaggle] --> B[Cleaning and name normalization]
+    B --> C[Historical feature builder - strictly earlier dates only]
+    C --> D[Time-based split - train 2008-2021, validate 2022, test 2023-2024]
+    D --> E[Baselines]
+    D --> F[Random Forest]
+    D --> G[XGBoost]
+    E --> H[Evaluation and comparison]
+    F --> H
+    G --> H
+    H --> I[Versioned model artifact]
+    I --> J[FastAPI service]
+    J --> K[React app]
+    K --> L[Predicted winner + both probabilities + confidence]
 ```
 
-**In short:** raw match data is cleaned, turned into meaningful features (computed only from *past* matches, to avoid data leakage), used to train and compare two classifiers, and the best one powers a simple web app.
+Features for each match are computed only from matches on **earlier dates**, and the same code builds features for training and for live predictions.
 
 ## 📁 Repository Structure
 
 ```
-ipl-match-winner-prediction/
 ├── data/
-│   ├── raw/              # Raw IPL CSVs (not committed — see Dataset section)
-│   └── processed/        # Cleaned dataset, generated by notebooks/scripts
+│   ├── raw/              # Kaggle CSVs (not committed, see Dataset)
+│   └── processed/        # Rebuilt by the scripts; only the *manifest.json hash files are committed
 ├── notebooks/
-│   ├── 01_data_cleaning_eda.ipynb
-│   ├── 02_feature_engineering.ipynb
-│   ├── 03_model_training_evaluation.ipynb
-│   └── 04_team_performance_analysis.ipynb
+│   └── 01_eda.ipynb      # Exploratory data analysis
 ├── src/
-│   ├── data/              # Data loading & cleaning scripts
-│   ├── features/          # Feature engineering module
-│   └── models/            # Training & evaluation scripts
+│   ├── data/             # inspect_raw.py, cleaning.py, mappings.py (team and venue names)
+│   ├── features/         # builder.py (leakage-safe historical features)
+│   └── models/           # Training and evaluation (Phase 4)
 ├── app/
-│   └── streamlit_app.py   # Streamlit application
-├── models/                 # Saved model artifacts (.pkl)
-├── docs/                   # Full project documentation (blueprint, PRD)
-├── reports/
-│   └── figures/            # Exported charts for the final report
-├── requirements.txt
-├── .gitignore
-└── README.md
+│   ├── frontend/         # React + Vite web app
+│   └── backend/          # FastAPI service (Phase 6)
+├── models/               # Saved model artifacts (Phase 5)
+├── reports/              # Data quality, cleaning, and EDA reports; figures/
+├── docs/                 # Setup, data source, data dictionary, cleaning rules, feature spec
+├── tests/                # pytest suite
+├── PROJECT.md            # Plan, decisions, and progress log
+└── requirements.txt
 ```
 
 ## 📊 Dataset
 
-**Source:** [IPL Complete Dataset 2008–2020 (Kaggle)](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020)
-
-The core file used is the match-level dataset (`matches.csv`), where each row is one IPL match with season, teams, venue, toss details, and the winner. Raw CSV files are **not committed** to this repository — download them from Kaggle and place them in `data/raw/` before running the notebooks.
+**Source:** [IPL Complete Dataset (2008–2024)](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020) by patrickb1912 on Kaggle, built from Cricsheet data. The URL still says 2008–2020, but the files run to the 2024 final.
 
 | File | Used for |
 |---|---|
-| `matches.csv` | Primary — match-level features and the training target |
-| `deliveries.csv` (optional) | Ball-by-ball detail, used only for extended exploratory analysis, not the core model |
+| `matches.csv` | Primary: 1,095 matches (1,090 with a result), source of all features and the target |
+| `deliveries.csv` (optional) | Ball-by-ball detail, exploration only |
+
+Raw files are **not committed**. Download them from Kaggle into `data/raw/`; their SHA-256 hashes are checked so everyone uses the same version. See [docs/data_source.md](docs/data_source.md).
 
 ## 🔬 Methodology
 
-1. **Data Cleaning** — handle missing values, remove duplicates and no-result matches, standardize team and venue names.
-2. **Feature Engineering** — compute, for each match, only from *matches before it*:
-   - Overall win rate per team
-   - Head-to-head win rate between the two teams
-   - Venue-specific win rate per team
-   - Recent form (last 5 matches)
-   - Toss winner / toss decision features
-3. **Modeling** — train a simple baseline (e.g. "always predict the toss winner"), a `RandomForestClassifier`, and an `XGBClassifier`.
-4. **Evaluation** — Accuracy, F1-score, ROC-AUC on a time-based split: train on 2008–2021, tune on 2022, and test once on 2023–2024. A random split is not used, because it would let models learn from matches played after the ones they predict.
-5. **Deployment** — the best model and its preprocessing pipeline are serialized together and loaded by the Streamlit app.
-
-Full reasoning behind every design decision is in [`docs/`](./docs).
+1. **Cleaning:** merge renamed franchises and grounds, remove no-result matches, and use the match year as the season. Rules: [docs/cleaning_rules.md](docs/cleaning_rules.md).
+2. **Features:** for each match, use only matches on strictly earlier dates. Small samples are smoothed toward 50%. Spec: [docs/features.md](docs/features.md).
+3. **Modeling:** compare a coin-flip baseline, an Elo-only baseline, and logistic regression with Random Forest and XGBoost.
+4. **Evaluation:** train on 2008–2021, tune on 2022, and test once on 2023–2024. A random split is not used, because it would let models learn from matches played after the ones they predict.
+5. **Serving:** the chosen model and its feature specification are saved as one versioned artifact, loaded by the FastAPI service, and shown in the React app.
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Python 3.9+
-- pip
+Full steps, including Windows notes, are in [docs/setup.md](docs/setup.md).
 
-### Installation
-```bash
-# clone the repository
-git clone https://github.com/<your-username>/ipl-match-winner-prediction.git
-cd ipl-match-winner-prediction
+```powershell
+git clone https://github.com/Roy-code5k/IPL_Match_Predictor-.git
+cd IPL_Match_Predictor-
 
-# install dependencies
+py -3.13 -m venv .venv
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+
+# Put matches.csv and deliveries.csv from Kaggle in data/raw/, then:
+python -m src.data.inspect_raw     # check file hashes and schema
+python -m src.data.cleaning        # data/processed/matches_clean.csv
+python -m src.features.builder     # data/processed/features.csv
+python -m pytest                   # run the tests
 ```
 
-### Dataset Setup
-1. Download `matches.csv` (and optionally `deliveries.csv`) from [Kaggle](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020).
-2. Place them in `data/raw/`.
-3. Verify and clean them:
-   ```bash
-   python -m src.data.inspect_raw   # checks file hashes and schema
-   python -m src.data.cleaning      # writes data/processed/matches_clean.csv
-   python -m pytest                 # runs the test suite
-   ```
+Frontend (needs Node.js):
 
-Full setup steps are in [`docs/setup.md`](docs/setup.md).
-
-## 🎮 Usage
-
-### Run the notebooks (in order)
-```bash
-jupyter notebook notebooks/01_data_cleaning_eda.ipynb
+```powershell
+cd app\frontend
+npm.cmd install
+npm.cmd run dev                    # open http://localhost:5173/
 ```
-
-### Train the model
-```bash
-python src/models/train_model.py
-```
-
-### Launch the Streamlit app
-```bash
-streamlit run app/streamlit_app.py
-```
-Then open the local URL Streamlit prints (usually `http://localhost:8501`), select two teams, a venue, and toss details, and click **Predict Winner**.
 
 ## 📈 Model Performance
 
-*To be filled in once training is complete.*
+*To be filled in after Phase 5 evaluation on the 2023–2024 test seasons.*
 
-| Model | Accuracy | F1-Score | ROC-AUC | Notes |
+| Model | Accuracy | F1-score | ROC-AUC | Notes |
 |---|---|---|---|---|
-| Baseline (toss winner) | — | — | — | Reference point |
+| Coin flip / Elo baseline | — | — | — | Reference points |
+| Logistic regression | — | — | — | |
 | Random Forest | — | — | — | |
 | XGBoost | — | — | — | |
 
+Pre-match signal in the IPL is weak (single-feature ROC-AUC is about 0.52–0.55), so accuracy is expected to be only a few points above 50%.
+
 ## 🗺 Project Status
 
-- [x] Project planning & full documentation (BRD, PRD, HLD/LLD, model card, ADRs)
-- [x] **Month 1** — Data cleaning & exploratory data analysis (see [`reports/eda_findings.md`](reports/eda_findings.md))
-- [ ] **Month 2** — Feature engineering, model training & comparison
-- [ ] **Month 3** — Streamlit app, final report & demo
+- [x] Phase 1: setup, data source, data dictionary, quality report
+- [x] Phase 2: cleaning pipeline and EDA ([reports/eda_findings.md](reports/eda_findings.md))
+- [x] Phase 3: leakage-safe historical features ([docs/features.md](docs/features.md))
+- [ ] Phase 4: baselines, Random Forest, XGBoost
+- [ ] Phase 5: evaluation and versioned model artifact
+- [ ] Phase 6: FastAPI service and connected React UI (frontend shell already built)
+- [ ] Phases 7–8: polish, final report, and demo
 
 ## ⚠️ Limitations & Responsible Use
 
-- Uses only pre-match, team/venue/toss-level data — no player-level stats or live ball-by-ball information.
-- Cricket has real randomness (form on the day, injuries, weather, pressure) that this dataset cannot capture — predictions are probability estimates, not certainties.
-- Performance for newer teams or rarely-used venues is naturally less reliable due to smaller historical sample sizes.
-- **This tool is for educational and analytical purposes only — it is not intended for betting, gambling, or any financial decision-making.**
+- Uses only pre-match team, venue, and toss information: no player-level stats or live ball-by-ball data.
+- Cricket has real randomness (form on the day, injuries, weather, pressure) that this dataset cannot capture. Predictions are probability estimates, not certainties.
+- Predictions for new teams or rarely used venues are less reliable because they have little history.
+- **This tool is for educational and analytical purposes only. It is not intended for betting, gambling, or any financial decision.**
 
 ## 📚 Documentation
 
-Full project documentation — including the Business Requirements Document, Product Requirements Document, UX design, technical architecture, testing strategy, model card, and Architecture Decision Records — is available in [`docs/`](./docs).
+| Document | Contents |
+|---|---|
+| [PROJECT.md](PROJECT.md) | Scope, decisions, plan, and progress log |
+| [docs/setup.md](docs/setup.md) | Local setup and rebuilding the data |
+| [docs/data_source.md](docs/data_source.md) | Dataset source and pinned version |
+| [docs/data_dictionary.md](docs/data_dictionary.md) | Every raw column |
+| [docs/cleaning_rules.md](docs/cleaning_rules.md) | Cleaning and name-mapping rules |
+| [docs/features.md](docs/features.md) | Feature definitions and leakage rules |
+| [reports/](reports/) | Data quality, cleaning, and EDA reports |
 
 ## 🙏 Acknowledgments
 
-- Dataset: [IPL Complete Dataset 2008–2020](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020) by patrickb1912 on Kaggle.
-- Built with [scikit-learn](https://scikit-learn.org/), [XGBoost](https://xgboost.readthedocs.io/), and [Streamlit](https://streamlit.io/).
+- Dataset: [IPL Complete Dataset](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020) by patrickb1912 on Kaggle, built from [Cricsheet](https://cricsheet.org/) data.
+- Built with [pandas](https://pandas.pydata.org/), [scikit-learn](https://scikit-learn.org/), [XGBoost](https://xgboost.readthedocs.io/), [React](https://react.dev/), and [Vite](https://vite.dev/).
 
 ## 📄 License
 
-This project is for educational purposes as part of a Data Science coursework project.
+This project is for educational purposes as part of a data science coursework project.

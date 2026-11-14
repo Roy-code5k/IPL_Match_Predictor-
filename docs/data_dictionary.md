@@ -35,7 +35,7 @@ Covers the raw files in `data/raw/`. Counts come from `reports/data_quality_repo
 
 ### Team names
 
-There are 19 raw team names. Four are the same franchise under an old and new name. The frontend already uses this grouping, and Phase 2 must adopt it in the cleaning code:
+There are 19 raw team names. Four are the same franchise under an old and new name. The cleaning code (`src/data/mappings.py`) and the frontend both use this grouping:
 
 | Raw name | Canonical franchise |
 |---|---|
@@ -44,7 +44,7 @@ There are 19 raw team names. Four are the same franchise under an old and new na
 | Rising Pune Supergiants | Rising Pune Supergiant |
 | Royal Challengers Bangalore | Royal Challengers Bengaluru |
 
-Deccan Chargers / Sunrisers Hyderabad, Pune Warriors / Rising Pune Supergiant, and Gujarat Lions / Gujarat Titans remain separate franchises. This leaves 15 franchises. The mapping is proposed, not final, until Phase 2 records it in PROJECT.md.
+Deccan Chargers / Sunrisers Hyderabad, Pune Warriors / Rising Pune Supergiant, and Gujarat Lions / Gujarat Titans remain separate franchises. This leaves 15 franchises. The mapping was finalised in Phase 2; the 58 raw venue labels map to 36 grounds as described in [cleaning_rules.md](cleaning_rules.md).
 
 ## deliveries.csv (one row per ball, 260,920 rows)
 
