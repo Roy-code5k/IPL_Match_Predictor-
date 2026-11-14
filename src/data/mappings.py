@@ -80,6 +80,11 @@ HOME_CITIES: dict[str, frozenset[str]] = {
     "Sunrisers Hyderabad": frozenset({"Hyderabad"}),
 }
 
+# Seasons played without home grounds: 2020 in the UAE, 2021 at neutral
+# venues (India leg) and the UAE, 2022 league stage in a Mumbai/Pune bubble.
+# No match in these seasons counts as a home match, even in a team's city.
+NO_HOME_SEASONS: frozenset[int] = frozenset({2020, 2021, 2022})
+
 
 class UnknownNameError(ValueError):
     """Raised when a team or venue name has no mapping."""

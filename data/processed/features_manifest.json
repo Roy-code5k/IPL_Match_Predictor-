@@ -1,12 +1,12 @@
 {
-  "feature_version": "1.0.0",
+  "feature_version": "1.1.0",
   "input": {
     "file": "data/processed/matches_clean.csv",
     "sha256": "37DA145431129F79E0DA499FCF4708E0D679D6A0F674FE94E88FA08B49C8A232"
   },
   "output": {
     "file": "data/processed/features.csv",
-    "sha256": "B2A52C7C8C8B33740ED3DB5CE07A4BE45C6B745E50AD34E72CB07B430E9A93C2",
+    "sha256": "FF3D6D6F5B8C9A82C94E5AC26D54E2CC0D159739A186EDC19523E06F9C466813",
     "rows": 1090
   },
   "feature_columns": [

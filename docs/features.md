@@ -1,4 +1,4 @@
-# Feature specification (v1.0.0)
+# Feature specification (v1.1.0)
 
 Produced by `python -m src.features.builder` from `data/processed/matches_clean.csv`.
 Output: `data/processed/features.csv` (1,090 rows, 38 features, not committed) and
@@ -30,7 +30,7 @@ The API receives a season and can optionally receive a match date.
 | Group | Columns | Definition |
 |---|---|---|
 | Context | `is_playoff`, `is_neutral_country` | Playoff stage; venue outside India (2009 South Africa; UAE in 2014, 2020 and part of 2021) |
-| Home | `home_a`, `home_b` | Venue city is the team's home city (`HOME_CITIES` in mappings; fixed domain knowledge, not learned) |
+| Home | `home_a`, `home_b` | Venue city is the team's home city (`HOME_CITIES` in mappings; fixed domain knowledge, not learned). Always 0 in `NO_HOME_SEASONS` (2020–2022, when no team played at home). |
 | Toss | `toss_won_a`, `toss_field`, `a_bats_first` | Toss winner, toss decision, and the batting order they imply |
 | Elo | `elo_a`, `elo_b`, `elo_diff`, `elo_prob_a` | Start 1500, K = 20, zero-sum. At a new season each rating keeps 75% of its distance from 1500. All matches on a date use pre-day ratings. |
 | Overall record | `win_rate_a/b`, `win_rate_diff`, `log_played_a/b` | All-time smoothed win rate and log(1 + matches played) |
@@ -44,6 +44,8 @@ The API receives a season and can optionally receive a match date.
 A team with no history gets exactly the prior, so new franchises (for example GT and LSG in 2022) need no special-case defaults.
 
 All constants were fixed before any model results were seen. They are recorded in the manifest.
+
+**Versions:** 1.0.0 first release. 1.1.0 sets the home flags to 0 in 2020–2022; before this, 8 Mumbai Indians matches in the 2022 Mumbai bubble counted as home matches.
 
 ## Team-swap symmetry
 

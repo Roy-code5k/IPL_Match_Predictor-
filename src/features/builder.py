@@ -37,7 +37,7 @@ CLEAN_PATH = ROOT / "data" / "processed" / "matches_clean.csv"
 FEATURES_PATH = ROOT / "data" / "processed" / "features.csv"
 FEATURES_MANIFEST = ROOT / "data" / "processed" / "features_manifest.json"
 
-FEATURE_VERSION = "1.0.0"
+FEATURE_VERSION = "1.1.0"  # 1.1.0: no home matches in NO_HOME_SEASONS
 
 # Tunable constants, fixed before looking at any results.
 ELO_START = 1500.0
@@ -237,7 +237,7 @@ def match_features(
 
     a_bats_first = bat_first_team(team1, team2, toss_winner, toss_decision) == team1
     city = mappings.venue_city(venue)
-    home = mappings.HOME_CITIES
+    home = {} if season in mappings.NO_HOME_SEASONS else mappings.HOME_CITIES
 
     return {
         "is_playoff": float(bool(is_playoff)),

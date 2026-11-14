@@ -89,6 +89,19 @@ def test_new_season_regresses_elo_and_resets_season_stats():
     assert second["prev_season_win_rate_a"] == pytest.approx((1 + 2.5) / (1 + 5))
 
 
+def test_home_flags_respect_no_home_seasons():
+    mi, csk = TEAMS[0], TEAMS[1]
+    df = pd.DataFrame([
+        match(1, "2019-04-01", mi, csk, mi, venue="Wankhede Stadium, Mumbai"),
+        match(2, "2022-04-01", mi, csk, mi, venue="Wankhede Stadium, Mumbai"),
+        match(3, "2023-04-01", csk, mi, mi, venue="Wankhede Stadium, Mumbai"),
+    ])
+    f = feats(df)
+    assert (f.loc[1, "home_a"], f.loc[1, "home_b"]) == (1.0, 0.0)
+    assert (f.loc[2, "home_a"], f.loc[2, "home_b"]) == (0.0, 0.0)   # 2022 bubble season
+    assert (f.loc[3, "home_a"], f.loc[3, "home_b"]) == (0.0, 1.0)
+
+
 # --- leakage -------------------------------------------------------------------
 
 def test_same_day_matches_do_not_see_each_other():
