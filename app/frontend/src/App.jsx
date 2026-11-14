@@ -33,6 +33,7 @@ const emptyForm = {
   season: '',
   toss_winner: '',
   toss_decision: '',
+  match_date: '',
 }
 
 function Window({ id, title, tone = 'blue', className = '', children }) {
@@ -84,6 +85,9 @@ function getErrors(form) {
     errors.toss_winner = 'The toss winner must be playing this match.'
   }
   if (!form.toss_decision) errors.toss_decision = 'Choose the toss decision.'
+  if (form.match_date && form.season && !form.match_date.startsWith(`${form.season}-`)) {
+    errors.match_date = `The match date must be in the ${form.season} season, or leave it blank.`
+  }
   return errors
 }
 
@@ -99,6 +103,18 @@ function SelectField({ id, label, value, onChange, placeholder, options, error, 
         })}
       </select>
       {error && <small id={`${id}-error`} className="field-error">{error}</small>}
+    </div>
+  )
+}
+
+function DateField({ id, label, value, onChange, season, error, hint }) {
+  const describedBy = [error && `${id}-error`, `${id}-hint`].filter(Boolean).join(' ')
+  return (
+    <div className="form-field">
+      <label htmlFor={id}>{label}</label>
+      <input type="date" id={id} name={id} value={value} onChange={onChange} min={season ? `${season}-01-01` : undefined} max={season ? `${season}-12-31` : undefined} aria-invalid={Boolean(error)} aria-describedby={describedBy} />
+      {error ? <small id={`${id}-error`} className="field-error">{error}</small> : null}
+      <small id={`${id}-hint`} className="field-hint">{hint}</small>
     </div>
   )
 }
@@ -151,24 +167,25 @@ function Predictor() {
     <Window id="predictor" title="predict_match.exe — pre-match configuration" className="predictor-window">
       <div className="predictor-heading">
         <SectionIntro eyebrow="MATCH PREDICTOR / INPUT CONSOLE" title="Set up the match.">
-          Configure a scenario after the toss and before the first ball. The interface validates your inputs now; model inference will arrive with the FastAPI backend.
+          Configure a scenario after the toss and before the first ball. Add a match date to use only results before that day. The interface validates your inputs now; model inference will arrive with the FastAPI backend.
         </SectionIntro>
         <Badge variant="red">ML OFFLINE</Badge>
       </div>
       <div className="predictor-layout">
         <form className="console-form inset-panel" onSubmit={submit} noValidate>
-          <div className="panel-caption">MATCH_SETUP.INI <span>01 / 06 FIELDS</span></div>
+          <div className="panel-caption">MATCH_SETUP.INI <span>07 FIELDS / 1 OPTIONAL</span></div>
           <div className="form-grid">
             <SelectField id="team1" label="TEAM A" value={form.team1} onChange={change} placeholder="Select franchise" options={teamOptions} error={errors.team1} />
             <SelectField id="team2" label="TEAM B" value={form.team2} onChange={change} placeholder="Select franchise" options={teamOptions.map((name) => ({ value: name, label: name, disabled: name === form.team1 }))} error={errors.team2} />
-            <SelectField id="venue" label="VENUE" value={form.venue} onChange={change} placeholder="Select dataset venue" options={venues} error={errors.venue} />
+            <SelectField id="venue" label="VENUE" value={form.venue} onChange={change} placeholder="Select ground" options={venues} error={errors.venue} />
             <SelectField id="season" label="SEASON" value={form.season} onChange={change} placeholder="Select year" options={seasons.map(String)} error={errors.season} />
             <SelectField id="toss_winner" label="TOSS WINNER" value={form.toss_winner} onChange={change} placeholder="Select match team" options={[form.team1, form.team2].filter(Boolean).filter((name, index, all) => all.indexOf(name) === index)} error={errors.toss_winner} disabled={!form.team1 || !form.team2} />
             <SelectField id="toss_decision" label="TOSS DECISION" value={form.toss_decision} onChange={change} placeholder="Select decision" options={[{ value: 'bat', label: 'Bat first' }, { value: 'field', label: 'Field first' }]} error={errors.toss_decision} />
+            <DateField id="match_date" label="MATCH DATE (OPTIONAL)" value={form.match_date} onChange={change} season={form.season} error={errors.match_date} hint="Blank: uses history before the season starts." />
           </div>
           <div className="form-actions">
             <button type="submit" className="button button-primary">Check configuration <span aria-hidden="true">→</span></button>
-            <span className="form-hint">All six fields are required.</span>
+            <span className="form-hint">Match date is optional. All other fields are required.</span>
           </div>
         </form>
 
@@ -194,7 +211,7 @@ function Predictor() {
             <div className="terminal-header"><span>historical_context.txt</span><span>● READ ONLY</span></div>
             {submitted ? (
               <div className="terminal-content">
-                <p><span className="prompt">&gt;</span> {submitted.season} · {submitted.venue}</p>
+                <p><span className="prompt">&gt;</span> {submitted.match_date || `${submitted.season} season`} · {submitted.venue}</p>
                 <p><span className="prompt">&gt;</span> {teamA.name}: {teamA.wins} wins / {teamA.played} decided matches</p>
                 <p><span className="prompt">&gt;</span> {teamB.name}: {teamB.wins} wins / {teamB.played} decided matches</p>
                 <p className="terminal-muted">Historical totals are descriptive, not prediction inputs or probabilities.</p>
@@ -220,7 +237,7 @@ function Findings() {
   return (
     <Window id="findings" title="findings\ — observed match history" tone="slate">
       <SectionIntro eyebrow="DATASET EXPLORER / OBSERVED DATA" title="What the scorecards say.">
-        Browse match-level summaries from the raw 2008–2024 file. These are descriptive counts; they do not indicate what a future match will do.
+        Browse match-level summaries from the cleaned 2008–2024 data. These are descriptive counts; they do not indicate what a future match will do.
       </SectionIntro>
       <div className="findings-grid">
         <article className="finding-card">
@@ -234,9 +251,9 @@ function Findings() {
         </article>
         <article className="finding-card">
           <div className="finding-top"><span>02 / VENUE TRENDS</span><span aria-hidden="true">⌖</span></div>
-          <h3>Most recorded venues</h3>
-          <div className="venue-list">{leadingVenues.map((venue) => <HistoricalLine key={venue.name} label={venue.name} value={venue.matches} max={77} />)}</div>
-          <p>Venue labels are shown exactly as recorded. Similar labels may refer to the same ground and are not combined yet.</p>
+          <h3>Most used grounds</h3>
+          <div className="venue-list">{leadingVenues.map((venue) => <HistoricalLine key={venue.name} label={venue.name} value={venue.matches} max={leadingVenues[0].matches} />)}</div>
+          <p>Decided matches per ground. The {dataset.rawVenueLabels} raw venue labels, including renamed grounds such as Feroz Shah Kotla, are merged into {dataset.grounds} grounds.</p>
         </article>
         <article className="finding-card">
           <div className="finding-top"><span>03 / TOSS ANALYSIS</span><span aria-hidden="true">◉</span></div>
@@ -249,7 +266,7 @@ function Findings() {
           <p>Rates describe the toss-winning side’s wins within each toss-decision group.</p>
         </article>
       </div>
-      <div className="source-strip"><span>DATA SOURCE</span> Local <code>data/raw/matches.csv</code> · 5 no-result matches excluded from win-rate calculations · Ties with a recorded winner included.</div>
+      <div className="source-strip"><span>DATA SOURCE</span> Cleaned <code>data/processed/matches_clean.csv</code> · 5 no-result matches excluded from win-rate calculations · Ties with a recorded winner included.</div>
     </Window>
   )
 }

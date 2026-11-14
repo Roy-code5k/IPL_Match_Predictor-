@@ -1,6 +1,7 @@
-// These descriptive figures were calculated from data/raw/matches.csv (1,095 rows).
-// They are historical observations, not model output. Raw venue labels are kept
-// distinct until the data-cleaning pipeline defines an approved venue mapping.
+// These descriptive figures were calculated from data/raw/matches.csv (1,095 rows)
+// and data/processed/matches_clean.csv (1,090 decided matches). They are historical
+// observations, not model output. Team and venue names follow src/data/mappings.py;
+// tests/test_frontend_data.py fails if the lists here drift from it.
 export const dataset = {
   matches: 1095,
   decidedMatches: 1090,
@@ -8,6 +9,7 @@ export const dataset = {
   lastSeason: 2024,
   seasons: 17,
   rawVenueLabels: 58,
+  grounds: 36,
   franchises: 15,
   noResults: 5,
 }
@@ -41,72 +43,53 @@ export const teams = [
   { name: 'Sunrisers Hyderabad', played: 182, wins: 88 },
 ]
 
+// The 36 grounds after merging label variants and renamed grounds
+// (e.g. Feroz Shah Kotla -> Arun Jaitley Stadium). Names are "Ground, City".
 export const venues = [
-  'Arun Jaitley Stadium',
+  'ACA-VDCA Cricket Stadium, Visakhapatnam',
   'Arun Jaitley Stadium, Delhi',
-  'Barabati Stadium',
+  'Barabati Stadium, Cuttack',
   'Barsapara Cricket Stadium, Guwahati',
-  'Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow',
-  'Brabourne Stadium',
   'Brabourne Stadium, Mumbai',
-  'Buffalo Park',
-  'De Beers Diamond Oval',
-  'Dr DY Patil Sports Academy',
-  'Dr DY Patil Sports Academy, Mumbai',
-  'Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium',
-  'Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium, Visakhapatnam',
-  'Dubai International Cricket Stadium',
-  'Eden Gardens',
+  'Buffalo Park, East London',
+  'De Beers Diamond Oval, Kimberley',
+  'Dr DY Patil Sports Academy, Navi Mumbai',
+  'Dubai International Cricket Stadium, Dubai',
   'Eden Gardens, Kolkata',
-  'Feroz Shah Kotla',
-  'Green Park',
-  'Himachal Pradesh Cricket Association Stadium',
-  'Himachal Pradesh Cricket Association Stadium, Dharamsala',
-  'Holkar Cricket Stadium',
-  'JSCA International Stadium Complex',
-  'Kingsmead',
-  'M Chinnaswamy Stadium',
+  'Ekana Cricket Stadium, Lucknow',
+  'Green Park, Kanpur',
+  'HPCA Stadium, Dharamsala',
+  'Holkar Cricket Stadium, Indore',
+  'JSCA International Stadium Complex, Ranchi',
+  'Kingsmead, Durban',
   'M Chinnaswamy Stadium, Bengaluru',
-  'M.Chinnaswamy Stadium',
-  'MA Chidambaram Stadium',
-  'MA Chidambaram Stadium, Chepauk',
-  'MA Chidambaram Stadium, Chepauk, Chennai',
+  'MA Chidambaram Stadium, Chennai',
   'Maharaja Yadavindra Singh International Cricket Stadium, Mullanpur',
-  'Maharashtra Cricket Association Stadium',
   'Maharashtra Cricket Association Stadium, Pune',
   'Narendra Modi Stadium, Ahmedabad',
-  'Nehru Stadium',
-  'New Wanderers Stadium',
-  'Newlands',
-  'OUTsurance Oval',
-  'Punjab Cricket Association IS Bindra Stadium',
-  'Punjab Cricket Association IS Bindra Stadium, Mohali',
-  'Punjab Cricket Association IS Bindra Stadium, Mohali, Chandigarh',
-  'Punjab Cricket Association Stadium, Mohali',
-  'Rajiv Gandhi International Stadium',
-  'Rajiv Gandhi International Stadium, Uppal',
-  'Rajiv Gandhi International Stadium, Uppal, Hyderabad',
-  'Sardar Patel Stadium, Motera',
-  'Saurashtra Cricket Association Stadium',
-  'Sawai Mansingh Stadium',
+  'Nehru Stadium, Kochi',
+  'New Wanderers Stadium, Johannesburg',
+  'Newlands, Cape Town',
+  'OUTsurance Oval, Bloemfontein',
+  'PCA IS Bindra Stadium, Mohali',
+  'Rajiv Gandhi International Stadium, Hyderabad',
+  'Saurashtra Cricket Association Stadium, Rajkot',
   'Sawai Mansingh Stadium, Jaipur',
-  'Shaheed Veer Narayan Singh International Stadium',
-  'Sharjah Cricket Stadium',
-  'Sheikh Zayed Stadium',
-  "St George's Park",
-  'Subrata Roy Sahara Stadium',
-  'SuperSport Park',
-  'Vidarbha Cricket Association Stadium, Jamtha',
-  'Wankhede Stadium',
+  'Shaheed Veer Narayan Singh International Stadium, Raipur',
+  'Sharjah Cricket Stadium, Sharjah',
+  "St George's Park, Port Elizabeth",
+  'SuperSport Park, Centurion',
+  'Vidarbha Cricket Association Stadium, Nagpur',
   'Wankhede Stadium, Mumbai',
   'Zayed Cricket Stadium, Abu Dhabi',
 ]
 
+// Decided matches per ground, all label variants merged.
 export const leadingVenues = [
-  { name: 'Eden Gardens', matches: 77 },
-  { name: 'Wankhede Stadium', matches: 73 },
-  { name: 'M Chinnaswamy Stadium', matches: 65 },
-  { name: 'Feroz Shah Kotla', matches: 60 },
+  { name: 'Wankhede Stadium, Mumbai', matches: 118 },
+  { name: 'Eden Gardens, Kolkata', matches: 93 },
+  { name: 'M Chinnaswamy Stadium, Bengaluru', matches: 91 },
+  { name: 'Arun Jaitley Stadium, Delhi', matches: 89 },
 ]
 
 export const tossStats = {
