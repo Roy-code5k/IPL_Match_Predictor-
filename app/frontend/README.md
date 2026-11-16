@@ -24,7 +24,9 @@ For a production check: `npm.cmd run build`, then `npm.cmd run preview` (also pr
 ## What each file does
 
 - `src/App.jsx` contains the window, badge, field, and chart components plus the page sections. The `Predictor` component has two modes: **before the first ball** (`POST /api/v1/predict`) and **during the match** (`POST /api/v1/predict-live`, with innings, completed overs, runs, wickets, and the first-innings total in the chase). It validates input first, using `GET /api/v1/options` to disable teams that did not play in the chosen season. The result shows both probabilities as text and a bar, the confidence label in words, the model release, and the history cutoff; API errors show their message and request id.
-- `src/api.js` is the small fetch client. Every API error becomes an `ApiError` with the server's `code`, `message`, and `request_id`; an unreachable server becomes `OFFLINE`.
+- The `ModelInputs` panel lists the key inputs behind a result (from `inputs` in the API response), and **Download CSV** saves the inputs, probabilities and model version.
+- `BatchPredictor` uploads a CSV (template downloadable from the page) to `POST /api/v1/predict-batch`, shows the first 50 results, and downloads the full results CSV. It also links to the prediction log export, `GET /api/v1/predictions/log.csv`.
+- `src/api.js` is the small fetch client, plus the `toCsv` and `downloadText` helpers for downloads made in the browser. Every API error becomes an `ApiError` with the server's `code`, `message`, and `request_id`; an unreachable server becomes `OFFLINE`.
 - `src/data.js` contains verified descriptive totals, franchise name mappings, venue choices, and the selectable seasons (2008–2027; seasons after 2024 use all history up to May 2024).
 - `src/styles.css` defines the desktop visual system, responsive layouts, and light/dark themes.
 - `src/main.jsx` mounts the React app. `index.html` is Vite's page entry.

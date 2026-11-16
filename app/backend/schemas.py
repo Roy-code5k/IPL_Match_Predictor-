@@ -40,7 +40,7 @@ class MatchSetup(BaseModel):
 class LiveRequest(MatchSetup):
     """Match setup plus the score at the end of an over (or the innings break)."""
 
-    innings: Literal[1, 2]
+    innings: int = Field(ge=1, le=2, description="1 = first innings, 2 = chase")  # int, so CSV text "2" works
     overs_done: int = Field(ge=0, le=19, description="Completed overs in the current innings")
     runs: int = Field(ge=0, le=MAX_RUNS)
     wickets: int = Field(ge=0, le=9)

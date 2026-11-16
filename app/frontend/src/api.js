@@ -34,3 +34,24 @@ export const getOptions = () => request('/options')
 export const getMetrics = () => request('/model-metrics')
 export const predict = (body) => request('/predict', { method: 'POST', body: JSON.stringify(body) })
 export const predictLive = (body) => request('/predict-live', { method: 'POST', body: JSON.stringify(body) })
+export const predictBatch = (csv) => request('/predict-batch', { method: 'POST', body: JSON.stringify({ csv }) })
+export const predictionLogUrl = `${BASE}/predictions/log.csv`
+
+// CSV helpers for downloads made in the browser.
+function csvCell(value) {
+  const text = value === null || value === undefined ? '' : String(value)
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+export function toCsv(columns, rows) {
+  return [columns.join(','), ...rows.map((row) => columns.map((column) => csvCell(row[column])).join(','))].join('\n') + '\n'
+}
+
+export function downloadText(filename, text, type = 'text/csv') {
+  const url = URL.createObjectURL(new Blob([text], { type }))
+  const link = Object.assign(document.createElement('a'), { href: url, download: filename })
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

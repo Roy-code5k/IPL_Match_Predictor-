@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { getHealth, getMetrics, getOptions, predict, predictLive } from './api.js'
+import { downloadText, getHealth, getMetrics, getOptions, predict, predictBatch, predictionLogUrl, predictLive, toCsv } from './api.js'
 import {
   dataset,
   franchiseAliases,
@@ -14,6 +14,7 @@ const navigation = [
   ['Overview', 'overview'],
   ['How It Works', 'how-it-works'],
   ['Match Predictor', 'predictor'],
+  ['Batch', 'batch'],
   ['Findings', 'findings'],
   ['Model Performance', 'performance'],
   ['About', 'about'],
@@ -44,6 +45,41 @@ const emptyForm = {
 }
 
 const percent = (value, digits = 1) => `${(value * 100).toFixed(digits)}%`
+
+// Same columns as the API's batch results, so single and batch downloads line up.
+const INPUT_COLUMNS = ['team1', 'team2', 'venue', 'season', 'toss_winner', 'toss_decision', 'match_date', 'is_playoff', 'innings', 'overs_done', 'runs', 'wickets', 'first_innings_total']
+const RESULT_COLUMNS = ['mode', 'team1_probability', 'team2_probability', 'predicted_winner', 'confidence', 'close_call', 'history_before', 'model_release', 'model_name']
+
+const BATCH_TEMPLATE = toCsv(INPUT_COLUMNS, [
+  { team1: 'Mumbai Indians', team2: 'Chennai Super Kings', venue: 'Wankhede Stadium, Mumbai', season: 2025, toss_winner: 'Chennai Super Kings', toss_decision: 'field' },
+  { team1: 'Kolkata Knight Riders', team2: 'Sunrisers Hyderabad', venue: 'Eden Gardens, Kolkata', season: 2025, toss_winner: 'Sunrisers Hyderabad', toss_decision: 'bat', innings: 2, overs_done: 10, runs: 85, wickets: 3, first_innings_total: 190 },
+])
+
+function formatInput(value, format) {
+  if (value === null || value === undefined) return '—'
+  if (format === 'percent') return percent(value)
+  if (format === 'yesno') return value ? 'yes' : 'no'
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
+}
+
+function resultRow(request, result) {
+  const inputs = Object.fromEntries(INPUT_COLUMNS.map((key) => [key, request[key] ?? '']))
+  if (request.mode !== 'live') ['innings', 'overs_done', 'runs', 'wickets', 'first_innings_total'].forEach((key) => { inputs[key] = '' })
+  if (request.mode === 'live' && request.innings !== '2') inputs.first_innings_total = ''
+  return {
+    ...inputs,
+    is_playoff: '',
+    mode: result.mode,
+    team1_probability: result.team1_probability,
+    team2_probability: result.team2_probability,
+    predicted_winner: result.predicted_winner,
+    confidence: result.confidence,
+    close_call: result.close_call,
+    history_before: result.history_before,
+    model_release: result.model.release,
+    model_name: result.model.name,
+  }
+}
 
 function Window({ id, title, tone = 'blue', className = '', children }) {
   return (
@@ -253,7 +289,27 @@ function stateSummary(result) {
   return `Chase: ${score} after ${s.overs_done} overs, target ${s.target} (${s.target - s.runs} needed off ${120 - 6 * s.overs_done} balls)`
 }
 
-function ResultView({ result, stale }) {
+function ModelInputs({ result }) {
+  return (
+    <div className="terminal" aria-label="Model inputs">
+      <div className="terminal-header"><span>model_inputs.txt</span><span>● {result.mode === 'live' ? 'LIVE STATE' : 'PRE-MATCH'}</span></div>
+      <div className="terminal-content">
+        {result.inputs.map((item) => (
+          <p key={item.label}>
+            <span className="prompt">&gt;</span> {item.label}:{' '}
+            {'value' in item && item.value !== null
+              ? formatInput(item.value, item.format)
+              : `${result.team1} ${formatInput(item.team1, item.format)} · ${result.team2} ${formatInput(item.team2, item.format)}`}
+            {item.note && <span className="terminal-muted"> ({item.note})</span>}
+          </p>
+        ))}
+        <p className="terminal-muted">What the model looked at, from matches before {result.history_before}. Win rates are pulled toward 50% when there are few matches. These are inputs, not reasons.</p>
+      </div>
+    </div>
+  )
+}
+
+function ResultView({ result, stale, request }) {
   return (
     <>
       {result.close_call ? (
@@ -273,7 +329,98 @@ function ResultView({ result, stale }) {
         {' '}This is an estimate, not a guarantee.
       </p>
       {stale && <p className="result-stale">Inputs changed since this prediction. Predict again to update it.</p>}
+      <div className="result-actions">
+        <button type="button" className="button button-small" onClick={() => downloadText(`prediction_${result.team1}_v_${result.team2}.csv`.replaceAll(' ', '_'), toCsv([...INPUT_COLUMNS, ...RESULT_COLUMNS], [resultRow(request, result)]))}>Download CSV</button>
+      </div>
     </>
+  )
+}
+
+function BatchPredictor({ service, options }) {
+  const [file, setFile] = useState(null)
+  const [running, setRunning] = useState(false)
+  const [outcome, setOutcome] = useState(null)
+  const maxRows = options?.batch?.max_rows ?? 200
+
+  async function run(event) {
+    event.preventDefault()
+    if (!file) {
+      setOutcome({ error: { message: 'Choose a CSV file first.' } })
+      return
+    }
+    setRunning(true)
+    try {
+      const text = await file.text()
+      setOutcome({ data: await predictBatch(text), name: file.name })
+    } catch (error) {
+      setOutcome({ error })
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const data = outcome?.data
+  const resultName = outcome?.name ? outcome.name.replace(/\.csv$/i, '') + '_predictions.csv' : 'predictions.csv'
+
+  return (
+    <Window id="batch" title="batch_predict.exe — many matches from a CSV" tone="slate">
+      <div className="predictor-heading">
+        <SectionIntro eyebrow="BATCH / CSV IN, CSV OUT" title="Predict a list of matches.">
+          Upload up to {maxRows} matches as a CSV with the same fields as the form. Rows with innings, overs, runs and wickets get a live prediction. Bad rows are reported, not dropped.
+        </SectionIntro>
+        <ServiceBadge service={service} />
+      </div>
+      <div className="batch-layout">
+        <form className="console-form inset-panel" onSubmit={run}>
+          <div className="panel-caption">BATCH_INPUT.CSV <span>MAX {maxRows} ROWS</span></div>
+          <ol className="batch-steps">
+            <li><button type="button" className="link-button" onClick={() => downloadText('batch_template.csv', BATCH_TEMPLATE)}>Download the template</button> (one pre-match and one live example).</li>
+            <li>Fill in one match per row. Leave the live columns empty for a pre-match prediction.</li>
+            <li>Choose the file and run the batch.</li>
+          </ol>
+          <div className="form-field">
+            <label htmlFor="batch-file">CSV FILE</label>
+            <input id="batch-file" type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setOutcome(null) }} />
+          </div>
+          <div className="form-actions">
+            <button type="submit" className="button button-primary" disabled={running}>{running ? 'Running…' : 'Run batch'} <span aria-hidden="true">→</span></button>
+            <a className="form-hint" href={predictionLogUrl} download>Download the prediction log (CSV)</a>
+          </div>
+        </form>
+        <div className="result-panel inset-panel batch-results" aria-live="polite" aria-busy={running}>
+          <div className="panel-caption">BATCH_RESULTS.LOG <span>{running ? 'RUNNING' : data ? 'COMPLETE' : outcome?.error ? 'ERROR' : 'IDLE'}</span></div>
+          {outcome?.error && (
+            <div className="result-alert" role="alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>Batch not run</strong><p>{outcome.error.message}</p>{outcome.error.requestId && <p className="request-id">Request id: {outcome.error.requestId}</p>}</div></div>
+          )}
+          {data && (
+            <>
+              <p className="batch-summary"><strong>{data.rows}</strong> matches: <strong>{data.succeeded}</strong> predicted, <strong>{data.failed}</strong> with errors.</p>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <caption className="sr-only">Batch prediction results</caption>
+                  <thead><tr><th scope="col">#</th><th scope="col">Match</th><th scope="col">Mode</th><th scope="col">Predicted winner</th><th scope="col">Chance</th><th scope="col">Confidence / error</th></tr></thead>
+                  <tbody>
+                    {data.results.slice(0, 50).map((row, index) => (
+                      <tr key={index} className={row.error ? 'row-error' : ''}>
+                        <td>{index + 1}</td>
+                        <td>{row.team1 || '?'} v {row.team2 || '?'}</td>
+                        <td>{row.mode || '—'}</td>
+                        <td>{row.predicted_winner || '—'}</td>
+                        <td>{row.error ? '—' : percent(Math.max(row.team1_probability, row.team2_probability))}</td>
+                        <td>{row.error || row.confidence}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {data.results.length > 50 && <p className="result-note">Showing the first 50 rows. The download has all {data.rows}.</p>}
+              <div className="result-actions"><button type="button" className="button button-small" onClick={() => downloadText(resultName, data.csv)}>Download results CSV</button></div>
+            </>
+          )}
+          {!data && !outcome?.error && <div className="result-empty"><span className="empty-glyph" aria-hidden="true">▤</span><strong>No batch yet</strong><p>Results appear here with a download link.</p></div>}
+        </div>
+      </div>
+    </Window>
   )
 }
 
@@ -323,9 +470,6 @@ function Predictor({ service, options, onRetry }) {
     }
   }
 
-  const request = outcome?.request
-  const teamA = teams.find((team) => team.name === request?.team1)
-  const teamB = teams.find((team) => team.name === request?.team2)
   const status = loading ? 'RUNNING' : outcome?.error ? 'ERROR' : outcome?.result ? 'COMPLETE' : 'IDLE'
 
   return (
@@ -373,26 +517,21 @@ function Predictor({ service, options, onRetry }) {
           <div className="result-panel inset-panel" aria-live="polite" aria-busy={loading}>
             <div className="panel-caption">PREDICTION_RESULT.LOG <span>{status}</span></div>
             {outcome?.result ? (
-              <ResultView result={outcome.result} stale={stale} />
+              <ResultView result={outcome.result} stale={stale} request={outcome.request} />
             ) : outcome?.error ? (
               <div className="result-alert" role="alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>{outcome.error.code === 'OFFLINE' ? 'Prediction service offline' : 'Prediction not made'}</strong><p>{outcome.error.message}</p>{outcome.error.requestId && <p className="request-id">Request id: {outcome.error.requestId}</p>}</div></div>
             ) : (
               <div className="result-empty"><span className="empty-glyph" aria-hidden="true">◎</span><strong>Awaiting match setup</strong><p>Complete the form and press Predict.</p></div>
             )}
           </div>
-          <div className="terminal" aria-label="Historical context">
-            <div className="terminal-header"><span>historical_context.txt</span><span>● READ ONLY</span></div>
-            {teamA && teamB ? (
-              <div className="terminal-content">
-                <p><span className="prompt">&gt;</span> {request.match_date || `${request.season} season`} · {request.venue}</p>
-                <p><span className="prompt">&gt;</span> {teamA.name}: {teamA.wins} wins / {teamA.played} decided matches</p>
-                <p><span className="prompt">&gt;</span> {teamB.name}: {teamB.wins} wins / {teamB.played} decided matches</p>
-                <p className="terminal-muted">All-time totals are descriptive context, not the model’s inputs.</p>
-              </div>
-            ) : (
-              <div className="terminal-content"><p><span className="prompt">&gt;</span> Predict a match to see the teams’ historical totals.</p><p className="terminal-muted">Dataset: 2008–2024 / {dataset.matches.toLocaleString()} match rows</p></div>
-            )}
-          </div>
+          {outcome?.result?.inputs?.length ? (
+            <ModelInputs result={outcome.result} />
+          ) : (
+            <div className="terminal" aria-label="Model inputs">
+              <div className="terminal-header"><span>model_inputs.txt</span><span>● WAITING</span></div>
+              <div className="terminal-content"><p><span className="prompt">&gt;</span> Predict a match to see what the model looked at.</p><p className="terminal-muted">Dataset: 2008–2024 / {dataset.matches.toLocaleString()} match rows</p></div>
+            </div>
+          )}
         </div>
       </div>
     </Window>
@@ -486,6 +625,35 @@ function Performance({ service, metrics }) {
           <p className="moments-note">Accuracy on {testFirst}–{testLast}, counting matches still in progress at each point. History up to {metrics.history_cutoff}.</p>
         </div>
       </div>
+      {metrics.comparison?.prematch && (
+        <>
+          <div className="comparison-grid">
+            {[['prematch', 'PRE-MATCH · TEST MATCHES'], ['live_innings2', 'LIVE CHASE · OVER-END STATES']].map(([key, title]) => (
+              <div className="inset-panel comparison-panel" key={key}>
+                <div className="panel-caption">MODEL_COMPARISON.CSV <span>{title}</span></div>
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <caption className="sr-only">Model comparison, {title.toLowerCase()}</caption>
+                    <thead><tr><th scope="col">Model</th><th scope="col">Accuracy</th><th scope="col">F1</th><th scope="col">ROC-AUC</th><th scope="col">Log loss</th></tr></thead>
+                    <tbody>
+                      {metrics.comparison[key].map((c) => (
+                        <tr key={c.model} className={c.selected ? 'row-selected' : ''}>
+                          <th scope="row">{c.model}{c.selected ? ' ✓ selected' : ''}</th>
+                          <td>{percent(c.metrics.accuracy)}</td>
+                          <td>{c.metrics.f1.toFixed(3)}</td>
+                          <td>{c.metrics.roc_auc.toFixed(3)}</td>
+                          <td>{c.metrics.log_loss.toFixed(3)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="moments-note">All candidates trained on {metrics.evaluation.trained_on_seasons.join('–')} and scored on {testFirst}–{testLast}. The selected models were chosen on 2015–2022 data before this test, so a candidate that happens to score higher here was not picked after the fact. Lower log loss is better; 0.693 is a coin flip.</p>
+        </>
+      )}
     </Window>
   )
 }
@@ -568,6 +736,7 @@ function App() {
         </Window>
 
         <Predictor service={service} options={options} onRetry={recheck} />
+        <BatchPredictor service={service} options={options} />
         <Findings />
         <Performance service={service} metrics={metrics} />
 

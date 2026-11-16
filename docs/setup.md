@@ -81,3 +81,5 @@ npm.cmd run dev
 ```
 
 Open http://localhost:5173/. Vite forwards `/api` to port 8000. See `app/frontend/README.md`.
+
+Every prediction is appended to `logs/predictions.jsonl` (not committed). Set `IPL_LOG_DIR` to use another folder, or `IPL_LOG=off` to turn logging off. Download the log as CSV from the Batch section or http://127.0.0.1:8000/api/v1/predictions/log.csv.

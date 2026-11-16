@@ -60,7 +60,10 @@ Cricket analysts, fans, and students often judge which team is likely to win by 
 - ✅ Metrics: accuracy with 95% intervals, F1, ROC-AUC, log loss, Brier score, confusion matrix, and calibration tables
 - ✅ Confidence labels fixed before testing, one evaluation on the 2023–2024 test seasons, and a versioned, hash-checked model release with a `Predictor` loader
 - ✅ FastAPI service returning both teams' probabilities, a confidence label, and the model version (pre-match and live), with stable error codes and request ids
-- 🔜 Prediction logging, CSV export, and final polish
+- ✅ Prediction log (inputs, outputs, model version, request id, response time) with CSV export
+- ✅ Batch predictions from a CSV of up to 200 matches, with CSV download of the results
+- ✅ Each result lists the key inputs the model used; the dashboard compares every model against the baselines
+- 🔜 Final verification, report, and demo
 
 ## 🛠 Tech Stack
 
@@ -197,7 +200,8 @@ Selection and confidence labels were fixed on 2015–2022 data before the 2023�
 - [x] Phase 4: baselines, Random Forest, XGBoost, and live win-probability models
 - [x] Phase 5: confidence labels, one test evaluation, and versioned model release
 - [x] Phase 6: FastAPI service and connected React UI (pre-match and live)
-- [ ] Phases 7–8: polish, final report, and demo
+- [x] Phase 7: prediction log, CSV export, batch predictions, model inputs, model comparison (MongoDB decision open)
+- [ ] Phase 8: final verification, report, and demo
 
 ## ⚠️ Limitations & Responsible Use
 

@@ -220,3 +220,18 @@ def test_log_export_is_csv_with_inputs_and_model(setup):
     header, *rows = r.text.strip().splitlines()
     assert header.startswith("logged_at,request_id,endpoint,status") and "model_release" in header
     assert rows and "test" in rows[-1]
+
+
+def test_batch_live_rows_and_csv_booleans(setup):
+    client, matches, states = setup
+    row = states[(states["innings"] == 2) & (states["overs_done"] == 0)].iloc[-1]
+    m = matches.set_index("match_id").loc[row.match_id]
+    text = ("team1,team2,venue,season,toss_winner,toss_decision,match_date,innings,overs_done,runs,wickets,"
+            "first_innings_total\n"
+            f'{m.team1},{m.team2},"{m.venue}",{m.season},{m.toss_winner},{m.toss_decision},{m.date:%Y-%m-%d},'
+            f"2,0,0,0,{int(row.target) - 1}")
+    out = client.post("/api/v1/predict-batch", json={"csv": text}).json()
+    assert out["succeeded"] == 1, out["results"][0]["error"]
+    assert out["results"][0]["mode"] == "live"
+    assert ",true," in out["csv"] or ",false," in out["csv"]
+    assert "True" not in out["csv"] and "False" not in out["csv"]

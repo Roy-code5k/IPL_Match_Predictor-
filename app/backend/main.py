@@ -84,10 +84,11 @@ def result_fields(prediction: schemas.Prediction | None) -> dict:
 
 
 def to_csv(rows: list[dict], columns: list[str]) -> str:
+    """CSV text; booleans written as true/false, matching the browser's single-result download."""
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows({k: (str(v).lower() if isinstance(v, bool) else v) for k, v in row.items()} for row in rows)
     return out.getvalue()
 
 
