@@ -52,7 +52,17 @@ git status                        # the reports should show no changes
 
 Both scripts use fixed seeds, so the reports are reproducible. Neither script reads the 2023–2024 test seasons.
 
-## 6. Frontend (optional at this stage)
+## 6. Build the model release (Phase 5)
+
+```powershell
+python -m src.models.calibration  # reports/calibration_review.md (pre-test data only)
+python -m src.models.release      # test evaluation, reports/model_evaluation.md, models/release-1.0.0/
+git status                        # models/release-1.0.0/metadata.json should show no changes
+```
+
+The release folder holds the saved models and the history snapshot they need. Only `metadata.json` is committed. The other files are rebuilt byte-identically, and `Predictor.load()` refuses to load them if their hashes do not match it. See [model_release.md](model_release.md).
+
+## 7. Frontend (optional at this stage)
 
 ```powershell
 cd app\frontend

@@ -7,10 +7,10 @@
 | Students | Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122) |
 | Course stage | Semester 3, sections A and B |
 | Project type | Data science and machine learning, delivered as a web application |
-| Status | Phases 1–4 complete (Phase 4 on 2026-11-16: pre-match and live models compared; test seasons untouched). React frontend shell built early (Phase 6 UI, not connected to a model). |
-| Next milestone | Phase 5: calibration and confidence labels, one evaluation on 2023–2024, versioned artifacts for both modes |
+| Status | Phases 1–5 complete (2026-11-16): models selected, evaluated once on 2023–2024, and saved as release 1.0.0. React frontend shell built early (Phase 6 UI, not connected to a model). |
+| Next milestone | Phase 6: FastAPI service on `src/models/predictor.py`, then connect the React form (pre-match and live) |
 | Planning horizon | 12 weeks across 3 months, from 2026-09-27 |
-| Schedule | Week 7 of 12 on 2026-11-13. Data/ML work is about 2 weeks behind plan (Phase 4 was due in week 6); see the catch-up note in section 6. |
+| Schedule | Week 8 of 12 on 2026-11-16. Phases 4–5 caught up the ML plan (Phase 5 was due by week 8); see the catch-up note in section 6. |
 | Repository | https://github.com/Roy-code5k/IPL_Match_Predictor- (push after every phase) |
 
 ## 1. Product summary
@@ -177,11 +177,11 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 | 2. Cleaning and EDA | ✅ Complete 2026-11-13 | `src/data/mappings.py`, `src/data/cleaning.py`, `docs/cleaning_rules.md`, `reports/cleaning_report.md`, `data/processed/manifest.json`, `notebooks/01_eda.ipynb`, `reports/figures/`, `reports/eda_findings.md`, `tests/test_cleaning.py` (22 tests passing in total) |
 | 3. Historical features | ✅ Complete 2026-11-13 | `src/features/builder.py`, `docs/features.md`, `data/processed/features_manifest.json`, `HOME_CITIES` in `src/data/mappings.py`, `tests/test_features.py` (37 tests passing in total) |
 | 4. Model training | ✅ Complete 2026-11-16 | `src/models/evaluation.py`, `src/models/prematch.py`, `reports/prematch_models.md`; live mode: `src/features/live.py`, `src/models/live.py`, `docs/live_model.md`, `reports/live_models.md`, `reports/figures/08_live_win_probability_2022_final.png`; `tests/test_models.py`, `tests/test_live.py` (64 tests passing in total) |
-| 5. Evaluation and release artifact | Not started | — |
+| 5. Evaluation and release artifact | ✅ Complete 2026-11-16 | `src/models/confidence.py`, `src/models/calibration.py`, `reports/calibration_review.md` (committed before the test run), `src/models/release.py`, `reports/model_evaluation.md`, `reports/figures/09_accuracy_by_moment.png`, `models/release-1.0.0/metadata.json`, `src/models/predictor.py`, `docs/model_release.md`, `tests/test_predictor.py` (79 tests passing in total) |
 | 6. API and core UI | UI shell done; API not started | `app/frontend/` validates the match form (36 merged grounds, optional match date) and shows "ML model not connected"; `tests/test_frontend_data.py` keeps its lists in line with the mappings; `app/backend/` is empty |
 | 7–8. Persistence, polish, handoff | Not started | — |
 
-**Catch-up note (updated 2026-11-16):** Phase 4 is done for both modes, so the plan is about one week behind. Next is Phase 5: review calibration and set confidence labels on validation data, evaluate the selected models once on 2023–2024, and save versioned artifacts. The frontend should not grow further until those artifacts exist.
+**Catch-up note (updated 2026-11-16):** Phases 4 and 5 are done, so the ML work is back on schedule. Next is Phase 6: a FastAPI service that loads release 1.0.0 through `Predictor`, then the React form wired to it, including a live-score input. Present pre-match probabilities as close to 50/50 (see the test findings in `docs/model_release.md`).
 
 ### Final definition of done
 
@@ -205,7 +205,7 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 | ~~**Team and venue mappings.**~~ **Resolved in Phase 2:** 19 raw team names → 15 franchises (renames only; matches the frontend) and 58 venue labels → 36 grounds (renamed grounds merged), all in `src/data/mappings.py`. The feature builder and API must import these mappings. | Incorrect merging changes historical rates. | Done |
 | **Supported seasons and venues.** Define accepted prediction inputs and behavior for categories absent from training. | Prevents invalid or misleading scenarios. | Before Phase 6 |
 | **MongoDB requirement.** Confirm whether final assessment requires database-backed logs or only the documented architecture. | Affects Week 11 scope and local setup. | Before Phase 7 |
-| **Confidence wording and thresholds.** Set labels after reviewing calibration and state that probability is an estimate. | Prevents overconfident presentation. | Phase 5 |
+| ~~**Confidence wording and thresholds.**~~ **Resolved in Phase 5:** labels by the favourite's probability: too close to call (<55%), slight edge (55–65%), clear edge (65–80%), strong edge (80%+); no recalibration. See `docs/model_release.md`. The UI must still state that the probability is an estimate. | Prevents overconfident presentation. | Done |
 
 ## 8. Status and change log
 
@@ -220,3 +220,4 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 - **2026-11-14 — Project review and fixes:** Full check passed (tests, package versions, byte-identical pipeline rebuild, notebook run, frontend build). Decided on React + FastAPI and rewrote the README to match the repository. Feature version 1.1.0: `NO_HOME_SEASONS` (2020–2022) turns off home flags, fixing 8 Mumbai Indians matches in the 2022 bubble wrongly marked as home (37 tests passing). Updated stale lines in the data dictionary.
 - **2026-11-14 — Frontend aligned with the data pipeline:** The venue dropdown now lists the 36 merged grounds instead of 58 raw labels, the venue panel uses merged counts (Wankhede 118, not 73), and the form has an optional match date that must fall in the chosen season (matches the API cutoff rule). Added `tests/test_frontend_data.py` so the frontend's team, venue, and count data cannot drift from the Python mappings (40 tests passing).
 - **2026-11-16 — Phase 4 complete, live mode added:** Confirmed the split and added a walk-forward 2015–2022 comparison, selecting by lowest walk-forward log loss. Pre-match: coin flip, Elo, logistic regression, Random Forest and XGBoost, with learned models trained on both team orders. Random Forest is selected (54.2% walk-forward accuracy, ROC-AUC 0.55; 51.4% on 2022), so pre-match signal is confirmed to be weak. Decided to add a live mode (scope change: live prediction from a user-entered score is now a Should-have; live feeds stay out of scope). Live states at every over end come from `deliveries.csv`, with rain-affected matches excluded and a leakage-safe par score. Logistic regression is selected for both innings: 63.9% at the innings break, 77.3% after 10 chase overs and 82.6% after 15 (walk-forward, in-progress matches only). Test seasons untouched. 64 tests passing.
+- **2026-11-16 — Live mode confirmed; Phase 5 complete:** The teammate confirmed the live-mode scope change. Froze the model selection and confidence labels on walk-forward 2015–2022 predictions and committed them before reading the test seasons (`4c34e4b`). One evaluation on 2023–2024: the live models held up (64.5% at the innings break, 75.5% after 10 chase overs, 84.2% after 15), while the pre-match Random Forest scored 48.6%, no better than a coin flip. Cause: the chasing side won 55% of matches in 2008–2022 but the side batting first won 52% in 2023–2024, so models that learned the chase advantage misjudged the new seasons. Refitted the selected models on 2008–2024 as release 1.0.0 (byte-identical rebuilds; only `metadata.json` is committed) and added `Predictor` for the API, with file-hash checks. 79 tests passing.

@@ -2,7 +2,7 @@
 
 Predicting IPL match winners from historical data, leakage-safe engineered features, and machine learning, delivered as a React web app backed by a FastAPI service.
 
-> **Status:** 🚧 In development. Data pipeline, features, and model comparison (pre-match and live) are complete; the one-time test evaluation and saved models are next. See [Project Status](#-project-status).
+> **Status:** 🚧 In development. Models are trained, tested once on 2023–2024, and saved as release 1.0.0; the FastAPI service and connected UI are next. See [Project Status](#-project-status).
 >
 > Deliveries Dataset Notebook Link - https://colab.research.google.com/drive/1GWo_tiz41R_kuatZS6lSi3WlwsU1ElzV#scrollTo=c_cQvCh0SV1A
 >
@@ -36,7 +36,7 @@ Students: Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122). The detailed pl
 
 This project estimates the probability that each of two IPL (Indian Premier League) teams wins a match. The prediction is made **after the toss and before the first ball**, using only what is known at that point: the two teams, the venue, the season, the toss winner, and the toss decision. These inputs are combined with historical statistics computed only from earlier matches, such as team ratings, recent form, head-to-head records, and venue trends.
 
-A second **live mode** updates the probability during the match from the current score: runs, wickets, completed overs and, in the chase, the target. Before the first ball the outcome is close to a coin flip (about 54% accuracy); once the match is under way the score carries much more signal (about 77% after 10 overs of the chase). Accuracy is always reported per prediction moment.
+A second **live mode** updates the probability during the match from the current score: runs, wickets, completed overs and, in the chase, the target. Before the first ball the outcome is close to a coin flip (49–54% accuracy); once the match is under way the score carries much more signal (about 75–77% after 10 overs of the chase, 82–84% after 15). Accuracy is always reported per prediction moment.
 
 It is an end-to-end data science project: data cleaning → feature engineering → model training and comparison → evaluation → a web app.
 
@@ -58,7 +58,7 @@ Cricket analysts, fans, and students often judge which team is likely to win by 
 - ✅ Coin-flip and Elo baselines, logistic regression, Random Forest, and XGBoost compared on a time-based split (walk-forward 2015–2022 and 2022 validation)
 - ✅ Live win-probability models for every over of both innings, built from `deliveries.csv` with a leakage-safe par score
 - ✅ Metrics: accuracy with 95% intervals, F1, ROC-AUC, log loss, Brier score, confusion matrix, and calibration tables
-- 🔜 One-time evaluation on the 2023–2024 test seasons, confidence labels, and saved model artifacts
+- ✅ Confidence labels fixed before testing, one evaluation on the 2023–2024 test seasons, and a versioned, hash-checked model release with a `Predictor` loader
 - 🔜 FastAPI service returning both teams' probabilities, a confidence label, and the model version (pre-match and live)
 
 ## 🛠 Tech Stack
@@ -105,11 +105,11 @@ Features for each match are computed only from matches on **earlier dates**, and
 ├── src/
 │   ├── data/             # inspect_raw.py, cleaning.py, mappings.py (team and venue names)
 │   ├── features/         # builder.py (pre-match features), live.py (in-match states)
-│   └── models/           # evaluation.py (split, metrics), prematch.py, live.py
+│   └── models/           # evaluation, prematch, live, calibration, release, predictor
 ├── app/
 │   ├── frontend/         # React + Vite web app
 │   └── backend/          # FastAPI service (Phase 6)
-├── models/               # Saved model artifacts (Phase 5)
+├── models/               # release-1.0.0/ (rebuilt by src.models.release; only metadata.json is committed)
 ├── reports/              # Data quality, cleaning, and EDA reports; figures/
 ├── docs/                 # Setup, data source, data dictionary, cleaning rules, feature spec
 ├── tests/                # pytest suite
@@ -154,6 +154,7 @@ python -m src.data.cleaning        # data/processed/matches_clean.csv
 python -m src.features.builder     # data/processed/features.csv
 python -m src.models.prematch      # reports/prematch_models.md
 python -m src.models.live          # reports/live_models.md
+python -m src.models.release       # test evaluation + models/release-1.0.0/
 python -m pytest                   # run the tests
 ```
 
@@ -167,29 +168,23 @@ npm.cmd run dev                    # open http://localhost:5173/
 
 ## 📈 Model Performance
 
-Phase 4 results on data before the test seasons. The 2023–2024 test seasons have not been used yet; they are evaluated once in Phase 5. Full tables: [reports/prematch_models.md](reports/prematch_models.md) and [reports/live_models.md](reports/live_models.md).
+Selection and confidence labels were fixed on 2015–2022 data before the 2023–2024 test seasons were evaluated, once. Full tables: [reports/model_evaluation.md](reports/model_evaluation.md) (test), [reports/prematch_models.md](reports/prematch_models.md) and [reports/live_models.md](reports/live_models.md) (model comparison), [docs/model_release.md](docs/model_release.md) (findings).
 
-**Pre-match (after the toss):**
-
-| Model | Walk-forward accuracy (489 matches) | ROC-AUC | Log loss | 2022 accuracy (74) |
+| Prediction moment | Selected model | Walk-forward 2015–2022 | Test 2023–2024 | Test ROC-AUC |
 |---|---|---|---|---|
-| Coin flip | 47.4% | 0.500 | 0.6931 | 50.0% |
-| Elo baseline | 51.1% | 0.515 | 0.7017 | 47.3% |
-| Logistic regression | 52.6% | 0.551 | 0.6976 | 44.6% |
-| **Random Forest (selected)** | **54.2%** | 0.546 | **0.6900** | 51.4% |
-| XGBoost | 53.2% | 0.540 | 0.7101 | 44.6% |
+| Pre-match, after the toss | Random Forest | 54.2% | 48.6% | 0.525 |
+| 1st innings, after 10 overs | Logistic regression | 60.4% | 67.4% | 0.707 |
+| Innings break (target known) | Logistic regression | 63.9% | 64.5% | 0.746 |
+| Chase, after 6 overs | Logistic regression | 71.7% | 74.5% | 0.825 |
+| Chase, after 10 overs | Logistic regression | 77.3% | 75.5% | 0.857 |
+| Chase, after 15 overs | Logistic regression | 82.6% | 84.2% | 0.933 |
 
-**Live (selected: logistic regression for both innings):**
+![Accuracy by prediction moment](reports/figures/09_accuracy_by_moment.png)
 
-| Prediction moment | Walk-forward accuracy | ROC-AUC | 2022 accuracy |
-|---|---|---|---|
-| 1st innings, after 10 overs | 60.4% | 0.654 | 70.3% |
-| Innings break (target known) | 63.9% | 0.732 | 74.3% |
-| Chase, after 6 overs | 71.7% | 0.824 | 74.3% |
-| Chase, after 10 overs | 77.3% | 0.851 | 82.2% |
-| Chase, after 15 overs | 82.6% | 0.915 | 85.3% |
-
-Walk-forward = each season from 2015 to 2022 predicted by a model trained only on earlier seasons. Accuracy has a 95% margin of about ±4.5 points on the walk-forward sample and ±11 points on 2022 alone. Live checkpoints count only matches still in progress at that point.
+- **Walk-forward:** each season from 2015 to 2022 predicted by a model trained only on earlier seasons (about 480 matches). **Test:** trained on 2008–2022, scored on 2023–2024 (144 matches; ±8 points at 95%).
+- Live rows count only matches still in progress at that point.
+- **Pre-match prediction did not beat a coin flip on the test seasons.** The chasing side won 55% of matches in 2008–2022, but the side batting first won 52% in 2023–2024, when scores rose sharply, so models that learned the chase advantage misjudged the new seasons. Pre-match probabilities are best read as close to 50/50.
+- The released models are refitted on 2008–2024 with the same settings.
 
 ## 🗺 Project Status
 
@@ -197,7 +192,7 @@ Walk-forward = each season from 2015 to 2022 predicted by a model trained only o
 - [x] Phase 2: cleaning pipeline and EDA ([reports/eda_findings.md](reports/eda_findings.md))
 - [x] Phase 3: leakage-safe historical features ([docs/features.md](docs/features.md))
 - [x] Phase 4: baselines, Random Forest, XGBoost, and live win-probability models
-- [ ] Phase 5: evaluation and versioned model artifact
+- [x] Phase 5: confidence labels, one test evaluation, and versioned model release
 - [ ] Phase 6: FastAPI service and connected React UI (frontend shell already built)
 - [ ] Phases 7–8: polish, final report, and demo
 
@@ -220,6 +215,7 @@ Walk-forward = each season from 2015 to 2022 predicted by a model trained only o
 | [docs/cleaning_rules.md](docs/cleaning_rules.md) | Cleaning and name-mapping rules |
 | [docs/features.md](docs/features.md) | Feature definitions and leakage rules |
 | [docs/live_model.md](docs/live_model.md) | Live mode: states, features, and evaluation |
+| [docs/model_release.md](docs/model_release.md) | Test protocol, results, confidence labels, and loading a release |
 | [reports/](reports/) | Data quality, cleaning, EDA, and model comparison reports |
 
 ## 🙏 Acknowledgments

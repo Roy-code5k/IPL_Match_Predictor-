@@ -3,8 +3,9 @@
 Split (decided 2026-11-13, confirmed at the start of Phase 4 on 2026-11-16):
     train 2008-2021, validate 2022, test 2023-2024.
 
-The test seasons are never read here. Phase 4 compares candidates on two views
-of the pre-test data:
+Only `final_test` reads the test seasons; Phase 5 calls it once the selection and
+confidence labels are frozen (src/models/confidence.py). Phase 4 compares
+candidates on two views of the pre-test data:
 
 - **Walk-forward 2015-2022:** for each season, train on all earlier seasons and
   predict that season. This pools about 490 matches, so differences between
@@ -67,6 +68,14 @@ def validation(df: pd.DataFrame, fit_predict: FitPredict) -> pd.DataFrame:
     train, evaluate = df[df["season"] < VALID_SEASON], df[df["season"] == VALID_SEASON]
     out = evaluate.copy()
     out["prob"] = fit_predict(train, evaluate)
+    return out
+
+
+def final_test(df: pd.DataFrame, fit_predict: FitPredict) -> pd.DataFrame:
+    """Phase 5 only, after selection is frozen: train on 2008-2022, predict 2023-2024."""
+    train = df[df["season"] < min(TEST_SEASONS)]
+    out = df[df["season"].isin(TEST_SEASONS)].copy()
+    out["prob"] = fit_predict(train, out)
     return out
 
 

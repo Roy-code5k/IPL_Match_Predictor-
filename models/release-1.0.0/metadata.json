@@ -1,0 +1,307 @@
+{
+  "release": "1.0.0",
+  "built_by": "python -m src.models.release",
+  "history_cutoff": "2024-05-26",
+  "history_rule": "features use only matches on dates strictly before the prediction cutoff",
+  "training_seasons": [
+    2008,
+    2024
+  ],
+  "evaluation": {
+    "trained_on_seasons": [
+      2008,
+      2022
+    ],
+    "test_seasons": [
+      2023,
+      2024
+    ],
+    "note": "Test metrics come from the same configuration trained on 2008-2022; the released models were refitted on all seasons afterwards."
+  },
+  "prematch": {
+    "model": "Random Forest",
+    "file": "prematch.joblib",
+    "estimator": "RandomForestClassifier(max_depth=5, min_samples_leaf=20, n_estimators=500,\n                       n_jobs=-1, random_state=42)",
+    "symmetric": true,
+    "output": "probability that team1 wins",
+    "feature_version": "1.1.0",
+    "features": [
+      "is_playoff",
+      "is_neutral_country",
+      "home_a",
+      "home_b",
+      "toss_won_a",
+      "toss_field",
+      "a_bats_first",
+      "elo_a",
+      "elo_b",
+      "elo_diff",
+      "elo_prob_a",
+      "win_rate_a",
+      "win_rate_b",
+      "win_rate_diff",
+      "log_played_a",
+      "log_played_b",
+      "form5_a",
+      "form5_b",
+      "form5_diff",
+      "form10_a",
+      "form10_b",
+      "form10_diff",
+      "season_win_rate_a",
+      "season_win_rate_b",
+      "season_win_rate_diff",
+      "season_played_a",
+      "season_played_b",
+      "prev_season_win_rate_a",
+      "prev_season_win_rate_b",
+      "h2h_win_rate_a",
+      "h2h_played",
+      "venue_win_rate_a",
+      "venue_win_rate_b",
+      "venue_played_a",
+      "venue_played_b",
+      "venue_chase_rate",
+      "batting_order_rate_a",
+      "recent_chase_rate"
+    ],
+    "training_rows": 1090,
+    "test_metrics": {
+      "n": 144,
+      "accuracy": 0.486111,
+      "accuracy_ci": 0.081635,
+      "f1": 0.339286,
+      "roc_auc": 0.525217,
+      "log_loss": 0.698664,
+      "brier": 0.252739,
+      "confusion": [
+        [
+          51,
+          18
+        ],
+        [
+          56,
+          19
+        ]
+      ]
+    }
+  },
+  "live": {
+    "feature_version": "1.0.0",
+    "output": "probability that the batting-first side wins",
+    "par_score": {
+      "window": 60,
+      "prior": 160.0,
+      "strength": 10.0
+    },
+    "excluded": "D/L matches and matches with fewer than 20 overs a side",
+    "innings1": {
+      "model": "Logistic regression",
+      "file": "live_innings1.joblib",
+      "estimator": "Pipeline(steps=[('standardscaler', StandardScaler()),\n                ('logisticregression', LogisticRegression(max_iter=5000))])",
+      "features": [
+        "overs_done",
+        "balls_left",
+        "runs",
+        "wickets",
+        "run_rate",
+        "projected_minus_par",
+        "par_score",
+        "elo_prob_bf",
+        "venue_chase_rate"
+      ],
+      "training_rows": 20098
+    },
+    "innings2": {
+      "model": "Logistic regression",
+      "file": "live_innings2.joblib",
+      "estimator": "Pipeline(steps=[('standardscaler', StandardScaler()),\n                ('logisticregression', LogisticRegression(max_iter=5000))])",
+      "features": [
+        "overs_done",
+        "balls_left",
+        "target",
+        "runs_needed",
+        "wickets_left",
+        "required_rate",
+        "target_minus_par",
+        "par_score",
+        "elo_prob_bf",
+        "venue_chase_rate"
+      ],
+      "training_rows": 20138
+    },
+    "test_accuracy_by_moment": {
+      "1st innings, after 6 overs": {
+        "n": 141,
+        "accuracy": 0.624113,
+        "accuracy_ci": 0.079948,
+        "f1": 0.582677,
+        "roc_auc": 0.676471,
+        "log_loss": 0.650143,
+        "brier": 0.228987,
+        "confusion": [
+          [
+            51,
+            17
+          ],
+          [
+            36,
+            37
+          ]
+        ]
+      },
+      "1st innings, after 10 overs": {
+        "n": 141,
+        "accuracy": 0.673759,
+        "accuracy_ci": 0.077387,
+        "f1": 0.656716,
+        "roc_auc": 0.707293,
+        "log_loss": 0.631611,
+        "brier": 0.219815,
+        "confusion": [
+          [
+            51,
+            17
+          ],
+          [
+            29,
+            44
+          ]
+        ]
+      },
+      "1st innings, after 15 overs": {
+        "n": 141,
+        "accuracy": 0.652482,
+        "accuracy_ci": 0.078599,
+        "f1": 0.662069,
+        "roc_auc": 0.730661,
+        "log_loss": 0.601909,
+        "brier": 0.208055,
+        "confusion": [
+          [
+            44,
+            24
+          ],
+          [
+            25,
+            48
+          ]
+        ]
+      },
+      "Innings break (target known)": {
+        "n": 141,
+        "accuracy": 0.64539,
+        "accuracy_ci": 0.078965,
+        "f1": 0.709302,
+        "roc_auc": 0.746172,
+        "log_loss": 0.631328,
+        "brier": 0.215674,
+        "confusion": [
+          [
+            30,
+            38
+          ],
+          [
+            12,
+            61
+          ]
+        ]
+      },
+      "Chase, after 6 overs": {
+        "n": 141,
+        "accuracy": 0.744681,
+        "accuracy_ci": 0.071974,
+        "f1": 0.756757,
+        "roc_auc": 0.824537,
+        "log_loss": 0.516911,
+        "brier": 0.170836,
+        "confusion": [
+          [
+            49,
+            19
+          ],
+          [
+            17,
+            56
+          ]
+        ]
+      },
+      "Chase, after 10 overs": {
+        "n": 139,
+        "accuracy": 0.755396,
+        "accuracy_ci": 0.071461,
+        "f1": 0.767123,
+        "roc_auc": 0.857202,
+        "log_loss": 0.470724,
+        "brier": 0.156945,
+        "confusion": [
+          [
+            49,
+            17
+          ],
+          [
+            17,
+            56
+          ]
+        ]
+      },
+      "Chase, after 15 overs": {
+        "n": 133,
+        "accuracy": 0.842105,
+        "accuracy_ci": 0.061972,
+        "f1": 0.853147,
+        "roc_auc": 0.932605,
+        "log_loss": 0.328779,
+        "brier": 0.105019,
+        "confusion": [
+          [
+            51,
+            10
+          ],
+          [
+            11,
+            61
+          ]
+        ]
+      }
+    }
+  },
+  "confidence_bands": [
+    {
+      "from": 0.8,
+      "label": "Strong edge"
+    },
+    {
+      "from": 0.65,
+      "label": "Clear edge"
+    },
+    {
+      "from": 0.55,
+      "label": "Slight edge"
+    },
+    {
+      "from": 0.5,
+      "label": "Too close to call"
+    }
+  ],
+  "close_call_label": "Too close to call",
+  "inputs": {
+    "data/processed/matches_clean.csv": "37DA145431129F79E0DA499FCF4708E0D679D6A0F674FE94E88FA08B49C8A232",
+    "data/processed/features.csv": "FF3D6D6F5B8C9A82C94E5AC26D54E2CC0D159739A186EDC19523E06F9C466813",
+    "data/raw/deliveries.csv": "142236EA52950795DAB266D4AA392C7645BD1A0DB4704F0B8058AFD96E24E2C2"
+  },
+  "packages": {
+    "pandas": "3.1.1",
+    "numpy": "2.5.4",
+    "scikit-learn": "1.9.1",
+    "xgboost": "3.4.1",
+    "joblib": "1.6.0"
+  },
+  "files": {
+    "prematch.joblib": "D4A0F1829D66BE081D242526627CC123843F2BE29090260AA66422898EF21D67",
+    "live_innings1.joblib": "A5DF601AD8FCBC336D721AAE6388A3CAADC95EA4BD5BFA6A78F03F3AB63D9A06",
+    "live_innings2.joblib": "84482802B9D6D20138F3BF783713A2082A7D292F0AED0C714C400F624EBF104C",
+    "history.csv": "8853440EDCDAD5422BB7BEE1B2610F31AB82052972A77FB090CE14EFE5BA3664",
+    "first_innings_totals.csv": "A95F5AB37FAA57924641856A5C7BF6EEB18CB483D6F10EB1DF56C5294F1FBE8A"
+  }
+}
