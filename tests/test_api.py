@@ -129,3 +129,9 @@ def test_missing_release_degrades_cleanly(tmp_path):
         m = {"team1": "Mumbai Indians", "team2": "Chennai Super Kings", "venue": "Wankhede Stadium, Mumbai",
              "season": 2024, "toss_winner": "Mumbai Indians", "toss_decision": "bat"}
         assert_error(client.post("/api/v1/predict", json=m), 503, "MODEL_UNAVAILABLE")
+
+
+def test_root_points_to_the_app_and_docs(setup):
+    client, *_ = setup
+    body = client.get("/").json()
+    assert "localhost:5173" in body["app"] and body["docs"] == "/api/docs"

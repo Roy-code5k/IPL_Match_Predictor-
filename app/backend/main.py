@@ -116,6 +116,13 @@ def create_app(release_dir: Path | None = None) -> FastAPI:
                 raise ApiError(400, "TEAM_NOT_IN_SEASON", f"{name} did not play in {when}.")
         mappings.normalize_venue(body.venue)
 
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return {"service": "IPL Match Winner Prediction API",
+                "app": "This is the API only. Open the web app at http://localhost:5173 "
+                       "(start it with: cd app\\frontend; npm.cmd run dev).",
+                "docs": "/api/docs", "health": "/api/v1/health"}
+
     @app.get("/api/v1/health", response_model=schemas.Health)
     async def health(request: Request):
         p = request.app.state.predictor
