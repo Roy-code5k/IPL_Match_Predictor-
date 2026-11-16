@@ -2,7 +2,7 @@
 
 Predicting IPL match winners from historical data, leakage-safe engineered features, and machine learning, delivered as a React web app backed by a FastAPI service.
 
-> **Status:** 🚧 In development. Models are trained, tested once on 2023–2024, and saved as release 1.0.0; the FastAPI service and connected UI are next. See [Project Status](#-project-status).
+> **Status:** 🚧 In development. The models are tested and served by a FastAPI service, and the React app makes pre-match and live predictions; persistence and polish are next. See [Project Status](#-project-status).
 >
 > Deliveries Dataset Notebook Link - https://colab.research.google.com/drive/1GWo_tiz41R_kuatZS6lSi3WlwsU1ElzV#scrollTo=c_cQvCh0SV1A
 >
@@ -54,12 +54,13 @@ Cricket analysts, fans, and students often judge which team is likely to win by 
 - ✅ Exploratory analysis of seasons, teams, toss, venues, and class balance
 - ✅ 38 leakage-safe historical features: Elo rating, overall and recent form, season record, head-to-head, venue record, home ground, toss and batting order
 - ✅ Tests that fail if a future or same-day result leaks into a feature
-- ✅ React frontend with a validated match form (not yet connected to a model)
+- ✅ React frontend: pre-match and live prediction forms, results with both probabilities and a confidence label, and test metrics loaded from the model release
 - ✅ Coin-flip and Elo baselines, logistic regression, Random Forest, and XGBoost compared on a time-based split (walk-forward 2015–2022 and 2022 validation)
 - ✅ Live win-probability models for every over of both innings, built from `deliveries.csv` with a leakage-safe par score
 - ✅ Metrics: accuracy with 95% intervals, F1, ROC-AUC, log loss, Brier score, confusion matrix, and calibration tables
 - ✅ Confidence labels fixed before testing, one evaluation on the 2023–2024 test seasons, and a versioned, hash-checked model release with a `Predictor` loader
-- 🔜 FastAPI service returning both teams' probabilities, a confidence label, and the model version (pre-match and live)
+- ✅ FastAPI service returning both teams' probabilities, a confidence label, and the model version (pre-match and live), with stable error codes and request ids
+- 🔜 Prediction logging, CSV export, and final polish
 
 ## 🛠 Tech Stack
 
@@ -69,7 +70,7 @@ Cricket analysts, fans, and students often judge which team is likely to win by 
 | Data processing | pandas, NumPy |
 | Machine learning | scikit-learn, XGBoost |
 | Visualization | matplotlib, seaborn |
-| API | FastAPI (planned, Phase 6) |
+| API | FastAPI + uvicorn |
 | Frontend | React 19 + Vite |
 | Testing | pytest |
 
@@ -108,7 +109,7 @@ Features for each match are computed only from matches on **earlier dates**, and
 │   └── models/           # evaluation, prematch, live, calibration, release, predictor
 ├── app/
 │   ├── frontend/         # React + Vite web app
-│   └── backend/          # FastAPI service (Phase 6)
+│   └── backend/          # FastAPI service (main.py routes, schemas.py request/response models)
 ├── models/               # release-1.0.0/ (rebuilt by src.models.release; only metadata.json is committed)
 ├── reports/              # Data quality, cleaning, and EDA reports; figures/
 ├── docs/                 # Setup, data source, data dictionary, cleaning rules, feature spec
@@ -158,12 +159,14 @@ python -m src.models.release       # test evaluation + models/release-1.0.0/
 python -m pytest                   # run the tests
 ```
 
-Frontend (needs Node.js):
+Run the app (needs Node.js), in two terminals:
 
 ```powershell
+python -m uvicorn app.backend.main:app --port 8000   # API; docs at http://127.0.0.1:8000/api/docs
+
 cd app\frontend
 npm.cmd install
-npm.cmd run dev                    # open http://localhost:5173/
+npm.cmd run dev                    # open http://localhost:5173/ (forwards /api to port 8000)
 ```
 
 ## 📈 Model Performance
@@ -193,7 +196,7 @@ Selection and confidence labels were fixed on 2015–2022 data before the 2023�
 - [x] Phase 3: leakage-safe historical features ([docs/features.md](docs/features.md))
 - [x] Phase 4: baselines, Random Forest, XGBoost, and live win-probability models
 - [x] Phase 5: confidence labels, one test evaluation, and versioned model release
-- [ ] Phase 6: FastAPI service and connected React UI (frontend shell already built)
+- [x] Phase 6: FastAPI service and connected React UI (pre-match and live)
 - [ ] Phases 7–8: polish, final report, and demo
 
 ## ⚠️ Limitations & Responsible Use

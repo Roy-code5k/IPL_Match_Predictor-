@@ -99,4 +99,7 @@ export const tossStats = {
   bat: { matches: 390, tossWinnerWon: 177 },
 }
 
-export const seasons = Array.from({ length: 17 }, (_, index) => 2024 - index)
+// Seasons the API accepts: the data seasons (2008-2024) plus three later seasons,
+// which are predicted from all history up to the end of the 2024 data.
+export const lastSupportedSeason = 2027
+export const seasons = Array.from({ length: lastSupportedSeason - 2007 }, (_, index) => lastSupportedSeason - index)

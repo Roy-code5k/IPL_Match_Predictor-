@@ -62,7 +62,17 @@ git status                        # models/release-1.0.0/metadata.json should sh
 
 The release folder holds the saved models and the history snapshot they need. Only `metadata.json` is committed. The other files are rebuilt byte-identically, and `Predictor.load()` refuses to load them if their hashes do not match it. See [model_release.md](model_release.md).
 
-## 7. Frontend (optional at this stage)
+## 7. Run the app (Phase 6)
+
+Terminal 1, from the project root (needs the release from step 6):
+
+```powershell
+.venv\Scripts\python.exe -m uvicorn app.backend.main:app --port 8000
+```
+
+Check http://127.0.0.1:8000/api/v1/health: it should report `"model_loaded": true`. Interactive API docs are at http://127.0.0.1:8000/api/docs.
+
+Terminal 2:
 
 ```powershell
 cd app\frontend
@@ -70,4 +80,4 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Open the URL Vite prints (normally http://localhost:5173/). The prediction form validates input but is not yet connected to a model. See `app/frontend/README.md`.
+Open http://localhost:5173/. Vite forwards `/api` to port 8000. See `app/frontend/README.md`.

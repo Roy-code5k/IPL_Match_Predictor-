@@ -4,31 +4,33 @@ A single-page React and Vite interface for the **IPL Cricket Match Winner Predic
 
 ## Run locally
 
-From `app/frontend`:
+The predictor needs the FastAPI service. From the project root, after `python -m src.models.release`:
+
+```powershell
+.venv\Scripts\python.exe -m uvicorn app.backend.main:app --port 8000
+```
+
+Then, from `app/frontend` in a second terminal:
 
 ```powershell
 npm.cmd install
 npm.cmd run dev
 ```
 
-Open the Local URL printed by Vite, normally `http://localhost:5173/`. On Windows PowerShell, `npm.cmd` works even when the execution policy blocks `npm.ps1`.
+Open the Local URL printed by Vite, normally `http://localhost:5173/`. Vite forwards `/api` to `http://127.0.0.1:8000` (`vite.config.js`), so no CORS setup is needed. On Windows PowerShell, `npm.cmd` works even when the execution policy blocks `npm.ps1`. Without the API the page still loads; the predictor and model-performance sections say the service is offline.
 
-For a production check:
-
-```powershell
-npm.cmd run build
-npm.cmd run preview
-```
+For a production check: `npm.cmd run build`, then `npm.cmd run preview` (also proxies `/api`).
 
 ## What each file does
 
-- `src/App.jsx` contains the reusable window, badge, statistic, field, and chart components, plus the page sections and interactions.
-- `src/data.js` contains verified descriptive totals, franchise name mappings, and venue choices derived from the raw match CSV.
+- `src/App.jsx` contains the window, badge, field, and chart components plus the page sections. The `Predictor` component has two modes: **before the first ball** (`POST /api/v1/predict`) and **during the match** (`POST /api/v1/predict-live`, with innings, completed overs, runs, wickets, and the first-innings total in the chase). It validates input first, using `GET /api/v1/options` to disable teams that did not play in the chosen season. The result shows both probabilities as text and a bar, the confidence label in words, the model release, and the history cutoff; API errors show their message and request id.
+- `src/api.js` is the small fetch client. Every API error becomes an `ApiError` with the server's `code`, `message`, and `request_id`; an unreachable server becomes `OFFLINE`.
+- `src/data.js` contains verified descriptive totals, franchise name mappings, venue choices, and the selectable seasons (2008–2027; seasons after 2024 use all history up to May 2024).
 - `src/styles.css` defines the desktop visual system, responsive layouts, and light/dark themes.
 - `src/main.jsx` mounts the React app. `index.html` is Vite's page entry.
 - `public/infinity-symbol.png` is the transparent symbol supplied for the project branding.
 
-The match form has six required inputs and an optional match date. Team A and Team B must be different, the toss winner must be one of them, and a match date must fall in the chosen season. A valid submission displays **“ML model not connected”** and the submitted setup. It does not call an API or generate a prediction.
+The model-performance section reads `GET /api/v1/model-metrics`, so its figures always come from the release that is making predictions.
 
 ## Dataset notes
 
@@ -42,9 +44,5 @@ The current raw file has 1,095 match rows dated 2008–2024, 17 calendar seasons
 | Royal Challengers Bangalore | Royal Challengers Bengaluru |
 
 Deccan Chargers and Sunrisers Hyderabad, Pune Warriors and Rising Pune Supergiant, and Gujarat Lions and Gujarat Titans remain distinct. The 58 raw venue labels are merged into 36 grounds named "Ground, City", following `src/data/mappings.py`. The values in `src/data.js` are a snapshot of the cleaned data; `python -m pytest` (see `tests/test_frontend_data.py`) fails if the team list, venue list, or counts drift from the Python mappings and cleaned data.
-
-## Future FastAPI connection
-
-The `Predictor` component's validated `form` object is ready to send to the planned `POST /api/v1/predict` endpoint. Its keys are `team1`, `team2`, `venue`, `season`, `toss_winner`, `toss_decision`, and the optional `match_date` (`YYYY-MM-DD`, empty when not given; it must fall in the chosen season). Replace the marked `setSubmitted` path with a request only after the backend and trained model exist. Then populate winner, both probabilities, confidence, and model version from the actual response. The model-performance section should likewise use real held-out evaluation data from `GET /api/v1/model-metrics`.
 
 Historical summaries describe previous matches; they are not model predictions. This project is for education, not betting.

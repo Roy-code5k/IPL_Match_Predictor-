@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { getHealth, getMetrics, getOptions, predict, predictLive } from './api.js'
 import {
   dataset,
   franchiseAliases,
@@ -20,13 +21,14 @@ const navigation = [
 
 const steps = [
   { number: '01', glyph: '▦', title: 'Data Preparation', text: 'Inspect raw match records, resolve missing outcomes, and document team and venue names.' },
-  { number: '02', glyph: '◇', title: 'Feature Engineering', text: 'Build historical team, venue, form, and toss features from matches before the prediction cutoff.' },
-  { number: '03', glyph: '⚙', title: 'Model Training', text: 'Compare baseline, Random Forest, and XGBoost candidates on the same training plan.' },
-  { number: '04', glyph: '◎', title: 'Prediction', text: 'Send validated pre-match inputs to the future FastAPI service and show both teams’ probabilities.' },
-  { number: '05', glyph: '✓', title: 'Evaluation', text: 'Report held-out metrics, calibration, and limitations for the released model version.' },
+  { number: '02', glyph: '◇', title: 'Feature Engineering', text: 'Build historical team, venue, form, and toss features from matches before the prediction cutoff, plus the live match state from ball-by-ball data.' },
+  { number: '03', glyph: '⚙', title: 'Model Training', text: 'Compare baselines, logistic regression, Random Forest, and XGBoost on seasons the models never trained on.' },
+  { number: '04', glyph: '◎', title: 'Prediction', text: 'Send validated inputs to the FastAPI service and show both teams’ probabilities, before the match or from the live score.' },
+  { number: '05', glyph: '✓', title: 'Evaluation', text: 'Test the selected models once on 2023–2024 and report accuracy for each prediction moment.' },
 ]
 
 const emptyForm = {
+  mode: 'prematch',
   team1: '',
   team2: '',
   venue: '',
@@ -34,7 +36,14 @@ const emptyForm = {
   toss_winner: '',
   toss_decision: '',
   match_date: '',
+  innings: '2',
+  overs_done: '',
+  runs: '',
+  wickets: '',
+  first_innings_total: '',
 }
+
+const percent = (value, digits = 1) => `${(value * 100).toFixed(digits)}%`
 
 function Window({ id, title, tone = 'blue', className = '', children }) {
   return (
@@ -50,6 +59,12 @@ function Window({ id, title, tone = 'blue', className = '', children }) {
 
 function Badge({ children, variant = 'neutral' }) {
   return <span className={`badge badge-${variant}`}><span className="badge-dot" />{children}</span>
+}
+
+function ServiceBadge({ service }) {
+  if (service.status === 'online') return <Badge variant="green">MODEL ONLINE</Badge>
+  if (service.status === 'checking') return <Badge>CHECKING…</Badge>
+  return <Badge variant="red">{service.status === 'degraded' ? 'MODEL NOT LOADED' : 'API OFFLINE'}</Badge>
 }
 
 function StatCard({ number, label, note, tone }) {
@@ -73,13 +88,30 @@ function SectionIntro({ eyebrow, title, children }) {
   )
 }
 
-function getErrors(form) {
+function isWhole(value, min, max) {
+  if (value === '' || !/^\d+$/.test(String(value))) return false
+  const number = Number(value)
+  return number >= min && number <= max
+}
+
+function getErrors(form, options) {
   const errors = {}
+  if (!form.season) errors.season = 'Choose a season.'
+  if (!form.venue) errors.venue = 'Choose a venue.'
   if (!form.team1) errors.team1 = 'Choose Team A.'
   if (!form.team2) errors.team2 = 'Choose Team B.'
   if (form.team1 && form.team1 === form.team2) errors.team2 = 'Choose a different franchise.'
-  if (!form.venue) errors.venue = 'Choose a venue.'
-  if (!form.season) errors.season = 'Choose a season.'
+  const allowed = options?.teams_by_season?.[form.season]
+  if (allowed) {
+    const future = Number(form.season) > options.last_data_season
+    for (const key of ['team1', 'team2']) {
+      if (form[key] && !errors[key] && !allowed.includes(form[key])) {
+        errors[key] = future
+          ? `${form[key]} was not active in ${options.last_data_season}, the latest season in the data.`
+          : `${form[key]} did not play in ${form.season}.`
+      }
+    }
+  }
   if (!form.toss_winner) errors.toss_winner = 'Choose the toss winner.'
   if (form.toss_winner && ![form.team1, form.team2].includes(form.toss_winner)) {
     errors.toss_winner = 'The toss winner must be playing this match.'
@@ -88,7 +120,45 @@ function getErrors(form) {
   if (form.match_date && form.season && !form.match_date.startsWith(`${form.season}-`)) {
     errors.match_date = `The match date must be in the ${form.season} season, or leave it blank.`
   }
+  if (form.mode === 'live') {
+    if (!['1', '2'].includes(form.innings)) errors.innings = 'Choose the innings.'
+    const chase = form.innings === '2'
+    const minOvers = chase ? 0 : 1
+    if (!isWhole(form.overs_done, minOvers, 19)) {
+      errors.overs_done = chase ? 'Enter completed overs from 0 (innings break) to 19.' : 'Enter completed overs from 1 to 19.'
+    }
+    if (!isWhole(form.runs, 0, 400)) errors.runs = 'Enter runs as a whole number from 0 to 400.'
+    if (!isWhole(form.wickets, 0, 9)) errors.wickets = 'Enter wickets from 0 to 9 (10 means the innings is over).'
+    if (chase) {
+      if (!isWhole(form.first_innings_total, 0, 400)) {
+        errors.first_innings_total = 'Enter the first-innings total (0 to 400).'
+      } else if (isWhole(form.runs, 0, 400) && Number(form.runs) > Number(form.first_innings_total)) {
+        errors.runs = 'The chase is already won at this score.'
+      }
+    }
+  }
   return errors
+}
+
+function requestBody(form) {
+  const body = {
+    team1: form.team1,
+    team2: form.team2,
+    venue: form.venue,
+    season: Number(form.season),
+    toss_winner: form.toss_winner,
+    toss_decision: form.toss_decision,
+    ...(form.match_date ? { match_date: form.match_date } : {}),
+  }
+  if (form.mode !== 'live') return body
+  return {
+    ...body,
+    innings: Number(form.innings),
+    overs_done: Number(form.overs_done),
+    runs: Number(form.runs),
+    wickets: Number(form.wickets),
+    ...(form.innings === '2' ? { first_innings_total: Number(form.first_innings_total) } : {}),
+  }
 }
 
 function SelectField({ id, label, value, onChange, placeholder, options, error, disabled = false }) {
@@ -107,6 +177,18 @@ function SelectField({ id, label, value, onChange, placeholder, options, error, 
   )
 }
 
+function NumberField({ id, label, value, onChange, min, max, error, hint }) {
+  const describedBy = [error && `${id}-error`, hint && `${id}-hint`].filter(Boolean).join(' ') || undefined
+  return (
+    <div className="form-field">
+      <label htmlFor={id}>{label}</label>
+      <input type="number" inputMode="numeric" id={id} name={id} value={value} onChange={onChange} min={min} max={max} step="1" aria-invalid={Boolean(error)} aria-describedby={describedBy} />
+      {error && <small id={`${id}-error`} className="field-error">{error}</small>}
+      {hint && <small id={`${id}-hint`} className="field-hint">{hint}</small>}
+    </div>
+  )
+}
+
 function DateField({ id, label, value, onChange, season, error, hint }) {
   const describedBy = [error && `${id}-error`, `${id}-hint`].filter(Boolean).join(' ')
   return (
@@ -119,24 +201,97 @@ function DateField({ id, label, value, onChange, season, error, hint }) {
   )
 }
 
-function HistoricalLine({ label, value, max, color = 'blue' }) {
+function HistoricalLine({ label, value, max, color = 'blue', display }) {
   return (
     <div className="historical-line">
-      <div className="historical-line-top"><span>{label}</span><strong>{value}</strong></div>
+      <div className="historical-line-top"><span>{label}</span><strong>{display ?? value}</strong></div>
       <div className="meter" aria-hidden="true"><span className={`meter-fill meter-${color}`} style={{ width: `${(value / max) * 100}%` }} /></div>
     </div>
   )
 }
 
-function Predictor() {
+function ModeSwitch({ value, onChange }) {
+  const choices = [
+    ['prematch', 'Before the first ball', 'Toss done, no balls bowled'],
+    ['live', 'During the match', 'Score at the end of an over'],
+  ]
+  return (
+    <fieldset className="mode-switch">
+      <legend>PREDICTION MOMENT</legend>
+      {choices.map(([key, title, note]) => (
+        <label key={key} className={value === key ? 'is-selected' : ''}>
+          <input type="radio" name="mode" value={key} checked={value === key} onChange={onChange} />
+          <span><strong>{title}</strong><small>{note}</small></span>
+        </label>
+      ))}
+    </fieldset>
+  )
+}
+
+function ProbabilityBar({ result }) {
+  const p1 = result.team1_probability
+  return (
+    <div className="probability">
+      <div className="probability-labels">
+        <span><strong>{result.team1}</strong> {percent(p1)}</span>
+        <span>{percent(1 - p1)} <strong>{result.team2}</strong></span>
+      </div>
+      <div className="probability-bar" role="img" aria-label={`${result.team1} ${percent(p1)}, ${result.team2} ${percent(1 - p1)}`}>
+        <span className="probability-team1" style={{ width: `${p1 * 100}%` }} />
+        <span className="probability-team2" style={{ width: `${(1 - p1) * 100}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function stateSummary(result) {
+  const s = result.state
+  if (!s) return null
+  const score = `${s.runs}/${s.wickets}`
+  if (s.innings === 1) return `${result.batting_first} ${score} after ${s.overs_done} overs (1st innings)`
+  if (s.overs_done === 0) return `Innings break: ${result.batting_first === result.team1 ? result.team2 : result.team1} need ${s.target} to win`
+  return `Chase: ${score} after ${s.overs_done} overs, target ${s.target} (${s.target - s.runs} needed off ${120 - 6 * s.overs_done} balls)`
+}
+
+function ResultView({ result, stale }) {
+  return (
+    <>
+      {result.close_call ? (
+        <div className="result-alert result-alert-close"><span className="alert-icon" aria-hidden="true">≈</span><div><strong>Too close to call</strong><p>The two probabilities are within 10 points. Treat this match as roughly 50/50.</p></div></div>
+      ) : null}
+      <div className="result-matchup"><strong>{result.team1}</strong><span>VS</span><strong>{result.team2}</strong></div>
+      {stateSummary(result) && <p className="result-state">{stateSummary(result)}</p>}
+      <ProbabilityBar result={result} />
+      <div className="result-readouts">
+        <div><span>PROJECTED WINNER</span><strong>{result.predicted_winner}</strong></div>
+        <div><span>WIN PROBABILITY</span><strong>{percent(Math.max(result.team1_probability, result.team2_probability))}</strong></div>
+        <div><span>CONFIDENCE</span><strong>{result.confidence}</strong></div>
+      </div>
+      <p className="result-note">
+        {result.mode === 'live' ? 'Live model' : 'Pre-match model'}: {result.model.name}, release {result.model.release}. Uses matches before {result.history_before}.
+        {result.mode === 'pre-match' && ' Pre-match predictions were no better than a coin flip on the 2023–2024 test seasons, so read them as close to 50/50.'}
+        {' '}This is an estimate, not a guarantee.
+      </p>
+      {stale && <p className="result-stale">Inputs changed since this prediction. Predict again to update it.</p>}
+    </>
+  )
+}
+
+function Predictor({ service, options, onRetry }) {
   const [form, setForm] = useState(emptyForm)
   const [attempted, setAttempted] = useState(false)
-  const [submitted, setSubmitted] = useState(null)
-  const errors = attempted ? getErrors(form) : {}
-  const teamOptions = teams.map((team) => team.name)
+  const [loading, setLoading] = useState(false)
+  const [outcome, setOutcome] = useState(null) // { result, request } or { error }
+  const [stale, setStale] = useState(false)
+  const errors = attempted ? getErrors(form, options) : {}
+  const allowed = options?.teams_by_season?.[form.season]
+  const teamOptions = teams.map((team) => ({ value: team.name, label: team.name, disabled: Boolean(allowed && !allowed.includes(team.name)) }))
+  const live = form.mode === 'live'
+  const futureSeason = form.season && Number(form.season) > dataset.lastSeason
 
   function change(event) {
     const { name, value } = event.target
+    setStale(true)
     setForm((previous) => {
       const next = { ...previous, [name]: value }
       if ((name === 'team1' || name === 'team2') && ![next.team1, next.team2].includes(next.toss_winner)) {
@@ -146,78 +301,96 @@ function Predictor() {
     })
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
     setAttempted(true)
-    const nextErrors = getErrors(form)
+    const nextErrors = getErrors(form, options)
     if (Object.keys(nextErrors).length > 0) {
-      const firstField = document.getElementById(Object.keys(nextErrors)[0])
-      firstField?.focus()
+      document.getElementById(Object.keys(nextErrors)[0])?.focus()
       return
     }
-    // This object matches the planned POST /api/v1/predict request body.
-    // No network call is made until the real FastAPI route and model exist.
-    setSubmitted({ ...form })
+    const body = requestBody(form)
+    setLoading(true)
+    try {
+      const result = live ? await predictLive(body) : await predict(body)
+      setOutcome({ result, request: { ...form } })
+      setStale(false)
+    } catch (error) {
+      setOutcome({ error })
+      if (error.code === 'OFFLINE') onRetry()
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const teamA = teams.find((team) => team.name === submitted?.team1)
-  const teamB = teams.find((team) => team.name === submitted?.team2)
+  const request = outcome?.request
+  const teamA = teams.find((team) => team.name === request?.team1)
+  const teamB = teams.find((team) => team.name === request?.team2)
+  const status = loading ? 'RUNNING' : outcome?.error ? 'ERROR' : outcome?.result ? 'COMPLETE' : 'IDLE'
 
   return (
-    <Window id="predictor" title="predict_match.exe — pre-match configuration" className="predictor-window">
+    <Window id="predictor" title="predict_match.exe — match configuration" className="predictor-window">
       <div className="predictor-heading">
         <SectionIntro eyebrow="MATCH PREDICTOR / INPUT CONSOLE" title="Set up the match.">
-          Configure a scenario after the toss and before the first ball. Add a match date to use only results before that day. The interface validates your inputs now; model inference will arrive with the FastAPI backend.
+          Predict after the toss, or update the prediction during the match from the score at the end of an over. Add a match date to use only results before that day.
         </SectionIntro>
-        <Badge variant="red">ML OFFLINE</Badge>
+        <ServiceBadge service={service} />
       </div>
       <div className="predictor-layout">
         <form className="console-form inset-panel" onSubmit={submit} noValidate>
-          <div className="panel-caption">MATCH_SETUP.INI <span>07 FIELDS / 1 OPTIONAL</span></div>
+          <div className="panel-caption">MATCH_SETUP.INI <span>{live ? 'LIVE SCORE' : 'PRE-MATCH'}</span></div>
+          <ModeSwitch value={form.mode} onChange={change} />
           <div className="form-grid">
-            <SelectField id="team1" label="TEAM A" value={form.team1} onChange={change} placeholder="Select franchise" options={teamOptions} error={errors.team1} />
-            <SelectField id="team2" label="TEAM B" value={form.team2} onChange={change} placeholder="Select franchise" options={teamOptions.map((name) => ({ value: name, label: name, disabled: name === form.team1 }))} error={errors.team2} />
+            <SelectField id="season" label="SEASON" value={form.season} onChange={change} placeholder="Select year" options={seasons.map((season) => ({ value: String(season), label: season > dataset.lastSeason ? `${season} (after the data)` : String(season) }))} error={errors.season} />
             <SelectField id="venue" label="VENUE" value={form.venue} onChange={change} placeholder="Select ground" options={venues} error={errors.venue} />
-            <SelectField id="season" label="SEASON" value={form.season} onChange={change} placeholder="Select year" options={seasons.map(String)} error={errors.season} />
+            <SelectField id="team1" label="TEAM A" value={form.team1} onChange={change} placeholder="Select franchise" options={teamOptions} error={errors.team1} />
+            <SelectField id="team2" label="TEAM B" value={form.team2} onChange={change} placeholder="Select franchise" options={teamOptions.map((option) => ({ ...option, disabled: option.disabled || option.value === form.team1 }))} error={errors.team2} />
             <SelectField id="toss_winner" label="TOSS WINNER" value={form.toss_winner} onChange={change} placeholder="Select match team" options={[form.team1, form.team2].filter(Boolean).filter((name, index, all) => all.indexOf(name) === index)} error={errors.toss_winner} disabled={!form.team1 || !form.team2} />
             <SelectField id="toss_decision" label="TOSS DECISION" value={form.toss_decision} onChange={change} placeholder="Select decision" options={[{ value: 'bat', label: 'Bat first' }, { value: 'field', label: 'Field first' }]} error={errors.toss_decision} />
-            <DateField id="match_date" label="MATCH DATE (OPTIONAL)" value={form.match_date} onChange={change} season={form.season} error={errors.match_date} hint="Blank: uses history before the season starts." />
+            <DateField id="match_date" label="MATCH DATE (OPTIONAL)" value={form.match_date} onChange={change} season={form.season} error={errors.match_date} hint={futureSeason ? 'Seasons after 2024 use all history up to May 2024.' : 'Blank: uses history before the season starts.'} />
           </div>
+          {live && (
+            <div className="live-fields">
+              <div className="panel-caption">LIVE_SCORE.DAT <span>END OF AN OVER</span></div>
+              <div className="form-grid">
+                <SelectField id="innings" label="INNINGS" value={form.innings} onChange={change} placeholder="Select innings" options={[{ value: '1', label: '1st innings' }, { value: '2', label: 'Chase (2nd innings)' }]} error={errors.innings} />
+                {form.innings === '2'
+                  ? <NumberField id="first_innings_total" label="FIRST-INNINGS TOTAL" value={form.first_innings_total} onChange={change} min={0} max={400} error={errors.first_innings_total} hint={isWhole(form.first_innings_total, 0, 400) ? `Target: ${Number(form.first_innings_total) + 1}` : 'Runs scored by the side batting first.'} />
+                  : <div className="field-spacer" aria-hidden="true" />}
+                <NumberField id="overs_done" label="OVERS COMPLETED" value={form.overs_done} onChange={change} min={form.innings === '2' ? 0 : 1} max={19} error={errors.overs_done} hint={form.innings === '2' ? '0 = innings break.' : 'Whole overs only.'} />
+                <NumberField id="runs" label={form.innings === '2' ? 'RUNS (CHASING SIDE)' : 'RUNS'} value={form.runs} onChange={change} min={0} max={400} error={errors.runs} />
+                <NumberField id="wickets" label="WICKETS LOST" value={form.wickets} onChange={change} min={0} max={9} error={errors.wickets} />
+              </div>
+            </div>
+          )}
           <div className="form-actions">
-            <button type="submit" className="button button-primary">Check configuration <span aria-hidden="true">→</span></button>
+            <button type="submit" className="button button-primary" disabled={loading}>{loading ? 'Predicting…' : 'Predict'} <span aria-hidden="true">→</span></button>
             <span className="form-hint">Match date is optional. All other fields are required.</span>
           </div>
         </form>
 
-        <div className="result-stack" aria-live="polite">
-          <div className="result-panel inset-panel">
-            <div className="panel-caption">PREDICTION_RESULT.LOG <span>{submitted ? 'CONFIGURED' : 'IDLE'}</span></div>
-            {submitted ? (
-              <>
-                <div className="result-alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>ML model not connected</strong><p>Your valid match setup is ready. Connect the trained model and FastAPI endpoint to return a prediction.</p></div></div>
-                <div className="result-matchup"><strong>{submitted.team1}</strong><span>VS</span><strong>{submitted.team2}</strong></div>
-              </>
+        <div className="result-stack">
+          <div className="result-panel inset-panel" aria-live="polite" aria-busy={loading}>
+            <div className="panel-caption">PREDICTION_RESULT.LOG <span>{status}</span></div>
+            {outcome?.result ? (
+              <ResultView result={outcome.result} stale={stale} />
+            ) : outcome?.error ? (
+              <div className="result-alert" role="alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>{outcome.error.code === 'OFFLINE' ? 'Prediction service offline' : 'Prediction not made'}</strong><p>{outcome.error.message}</p>{outcome.error.requestId && <p className="request-id">Request id: {outcome.error.requestId}</p>}</div></div>
             ) : (
-              <div className="result-empty"><span className="empty-glyph" aria-hidden="true">◎</span><strong>Awaiting match setup</strong><p>Complete the form to check the configuration.</p></div>
+              <div className="result-empty"><span className="empty-glyph" aria-hidden="true">◎</span><strong>Awaiting match setup</strong><p>Complete the form and press Predict.</p></div>
             )}
-            <div className="result-readouts">
-              <div><span>PROJECTED WINNER</span><strong>—</strong></div>
-              <div><span>TEAM PROBABILITIES</span><strong>Unavailable</strong></div>
-              <div><span>CONFIDENCE</span><strong>Unavailable</strong></div>
-            </div>
-            {submitted && <p className="result-note">No probability, winner, or confidence label has been generated.</p>}
           </div>
           <div className="terminal" aria-label="Historical context">
             <div className="terminal-header"><span>historical_context.txt</span><span>● READ ONLY</span></div>
-            {submitted ? (
+            {teamA && teamB ? (
               <div className="terminal-content">
-                <p><span className="prompt">&gt;</span> {submitted.match_date || `${submitted.season} season`} · {submitted.venue}</p>
+                <p><span className="prompt">&gt;</span> {request.match_date || `${request.season} season`} · {request.venue}</p>
                 <p><span className="prompt">&gt;</span> {teamA.name}: {teamA.wins} wins / {teamA.played} decided matches</p>
                 <p><span className="prompt">&gt;</span> {teamB.name}: {teamB.wins} wins / {teamB.played} decided matches</p>
-                <p className="terminal-muted">Historical totals are descriptive, not prediction inputs or probabilities.</p>
+                <p className="terminal-muted">All-time totals are descriptive context, not the model’s inputs.</p>
               </div>
             ) : (
-              <div className="terminal-content"><p><span className="prompt">&gt;</span> Choose teams to inspect historical totals.</p><p className="terminal-muted">Dataset: 2008–2024 / {dataset.matches.toLocaleString()} match rows</p></div>
+              <div className="terminal-content"><p><span className="prompt">&gt;</span> Predict a match to see the teams’ historical totals.</p><p className="terminal-muted">Dataset: 2008–2024 / {dataset.matches.toLocaleString()} match rows</p></div>
             )}
           </div>
         </div>
@@ -271,29 +444,88 @@ function Findings() {
   )
 }
 
-function Performance() {
-  const metrics = ['Accuracy', 'F1-score', 'ROC-AUC']
+function Performance({ service, metrics }) {
+  if (!metrics) {
+    return (
+      <Window id="performance" title="model_performance.log — evaluation status">
+        <div className="performance-heading"><SectionIntro eyebrow="MODEL STATUS / NOT CONNECTED" title="Metrics load from the model release.">The figures here come from the loaded model release, so they always match the model making predictions. {service.status === 'checking' ? 'Connecting…' : 'Start the API to load them.'}</SectionIntro><ServiceBadge service={service} /></div>
+      </Window>
+    )
+  }
+  const pre = metrics.prematch.test_metrics
+  const moments = Object.entries(metrics.live.test_accuracy_by_moment)
+  const chase10 = metrics.live.test_accuracy_by_moment['Chase, after 10 overs']
+  const [[tn, fp], [fn, tp]] = pre.confusion
+  const [testFirst, testLast] = [metrics.evaluation.test_seasons[0], metrics.evaluation.test_seasons.at(-1)]
+  const cards = [
+    ['Pre-match accuracy', percent(pre.accuracy), `±${percent(pre.accuracy_ci)} · ${pre.n} test matches`],
+    ['Pre-match ROC-AUC', pre.roc_auc.toFixed(3), '0.500 = coin flip'],
+    ['Live, chase after 10 overs', chase10 ? percent(chase10.accuracy) : '—', chase10 ? `±${percent(chase10.accuracy_ci)} · ${chase10.n} matches` : ''],
+  ]
   return (
-    <Window id="performance" title="model_performance.log — evaluation status">
-      <div className="performance-heading"><SectionIntro eyebrow="MODEL STATUS / AWAITING TRAINING" title="No score without a model.">Evaluation figures will appear after candidates are trained and tested on a documented later-period holdout set.</SectionIntro><Badge variant="red">NOT TRAINED</Badge></div>
+    <Window id="performance" title="model_performance.log — evaluation results">
+      <div className="performance-heading">
+        <SectionIntro eyebrow={`MODEL STATUS / RELEASE ${metrics.release}`} title={`Tested once on ${testFirst}–${testLast}.`}>
+          The models were chosen on earlier seasons, trained on {metrics.evaluation.trained_on_seasons.join('–')}, and scored once on {testFirst}–{testLast}. Before the first ball the outcome is close to a coin flip; once the match is under way the score is far more informative.
+        </SectionIntro>
+        <Badge variant="green">TESTED</Badge>
+      </div>
       <div className="performance-grid">
-        <div className="metric-grid">{metrics.map((metric) => <div className="metric-card" key={metric}><span>{metric}</span><strong>—</strong><small>Unavailable</small></div>)}</div>
-        <div className="confusion-panel inset-panel"><div className="panel-caption">CONFUSION_MATRIX.CSV</div><div className="matrix"><span>Actual A / Pred A</span><span>Actual A / Pred B</span><span>Actual B / Pred A</span><span>Actual B / Pred B</span></div><p>No held-out predictions exist yet.</p></div>
-        <div className="importance-panel terminal"><div className="terminal-header"><span>feature_importance.log</span><span>● PENDING</span></div><div className="terminal-content"><p><span className="prompt">&gt;</span> Waiting for trained model artifacts...</p><p className="terminal-muted">Feature rankings and model version will appear here after evaluation.</p></div></div>
+        <div className="metric-grid">{cards.map(([label, value, note]) => <div className="metric-card metric-live" key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>)}</div>
+        <div className="confusion-panel inset-panel">
+          <div className="panel-caption">CONFUSION_MATRIX.CSV <span>PRE-MATCH · {pre.n}</span></div>
+          <div className="matrix matrix-filled">
+            <span><b>{tp}</b>Actual A / Pred A</span><span><b>{fn}</b>Actual A / Pred B</span>
+            <span><b>{fp}</b>Actual B / Pred A</span><span><b>{tn}</b>Actual B / Pred B</span>
+          </div>
+          <p>Team A = the first team entered. The pre-match model ({metrics.prematch.model}) picked Team B in {tn + fn} of {pre.n} test matches: it had learned that chasing sides win more often, which stopped being true in {testFirst}–{testLast}.</p>
+        </div>
+        <div className="importance-panel inset-panel moments-panel">
+          <div className="panel-caption">LIVE_ACCURACY_BY_MOMENT.LOG <span>{metrics.live.innings2_model}</span></div>
+          <div className="venue-list">{moments.map(([label, m]) => <HistoricalLine key={label} label={`${label} (${m.n})`} value={m.accuracy} max={1} color="green" display={percent(m.accuracy)} />)}</div>
+          <p className="moments-note">Accuracy on {testFirst}–{testLast}, counting matches still in progress at each point. History up to {metrics.history_cutoff}.</p>
+        </div>
       </div>
     </Window>
   )
+}
+
+function useService() {
+  const [service, setService] = useState({ status: 'checking' })
+  const check = useCallback(async () => {
+    try {
+      const health = await getHealth()
+      setService(health.model_loaded
+        ? { status: 'online', release: health.release, cutoff: health.history_cutoff }
+        : { status: 'degraded', detail: health.detail })
+    } catch {
+      setService({ status: 'offline' })
+    }
+  }, [])
+  useEffect(() => { check() }, [check])
+  return [service, check]
 }
 
 function App() {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('ipl-theme') || 'light' } catch { return 'light' }
   })
+  const [service, recheck] = useService()
+  const [options, setOptions] = useState(null)
+  const [metrics, setMetrics] = useState(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     try { localStorage.setItem('ipl-theme', theme) } catch { /* Storage may be disabled. */ }
   }, [theme])
+
+  useEffect(() => {
+    if (service.status !== 'online') return
+    getOptions().then(setOptions).catch(() => setOptions(null))
+    getMetrics().then(setMetrics).catch(() => setMetrics(null))
+  }, [service.status])
+
+  const online = service.status === 'online'
 
   return (
     <>
@@ -311,23 +543,23 @@ function App() {
             <div className="hero-copy">
               <div className="eyebrow eyebrow-green">● IPL DATA / 2008—2024</div>
               <h1>Read the match.<br /><span>Respect the uncertainty.</span></h1>
-              <p>Explore the history behind IPL matchups and prepare a winner-prediction scenario in a desktop-style cricket analytics console.</p>
+              <p>Explore the history behind IPL matchups and estimate each team’s chance of winning, before the first ball or live from the score.</p>
               <div className="hero-actions"><a className="button button-primary" href="#predictor">Predict a Match <span aria-hidden="true">→</span></a><a className="button" href="#findings">Explore Analytics</a></div>
-              <div className="hero-stats"><StatCard number={dataset.matches.toLocaleString()} label="historical matches" note="raw match rows" tone="red" /><StatCard number={`${dataset.firstSeason}–${dataset.lastSeason}`} label="seasons covered" note={`${dataset.seasons} calendar seasons`} tone="green" /><StatCard number="03" label="analytics views" note="team / venue / toss" tone="blue" /></div>
+              <div className="hero-stats"><StatCard number={dataset.matches.toLocaleString()} label="historical matches" note="raw match rows" tone="red" /><StatCard number={`${dataset.firstSeason}–${dataset.lastSeason}`} label="seasons covered" note={`${dataset.seasons} calendar seasons`} tone="green" /><StatCard number="02" label="prediction modes" note="pre-match / live score" tone="blue" /></div>
             </div>
-            <div className="hero-visual" aria-label="Console preview showing data available and model offline">
+            <div className="hero-visual" aria-label={`Console preview: data loaded, model ${online ? 'online' : 'offline'}`}>
               <div className="floating-window">
                 <div className="mini-titlebar"><span>match_status.exe</span><span aria-hidden="true">×</span></div>
                 <div className="floating-body">
                   <img className="hero-symbol" src="/infinity-symbol.png" alt="Blue-to-turquoise infinity symbol" />
-                  <div><div className="floating-kicker">SYSTEM CHECK</div><h2>History loaded.<br />Model pending.</h2><p>Match records are ready to explore. Predictions will activate when the trained model is connected.</p></div>
-                  <div className="floating-status"><Badge variant="green">DATA READY</Badge><Badge variant="red">MODEL OFFLINE</Badge></div>
-                  <div className="floating-terminal"><span>&gt; records_loaded: {dataset.matches}</span><span>&gt; franchise_identities: {dataset.franchises}</span><span>&gt; inference_service: awaiting connection_</span></div>
+                  <div><div className="floating-kicker">SYSTEM CHECK</div><h2>History loaded.<br />{online ? 'Model online.' : 'Model offline.'}</h2><p>{online ? `Release ${service.release} is ready. Predictions use matches up to ${service.cutoff}.` : 'Match records are ready to explore. Start the API to make predictions.'}</p></div>
+                  <div className="floating-status"><Badge variant="green">DATA READY</Badge><ServiceBadge service={service} /></div>
+                  <div className="floating-terminal"><span>&gt; records_loaded: {dataset.matches}</span><span>&gt; franchise_identities: {dataset.franchises}</span><span>&gt; inference_service: {online ? `connected (release ${service.release})` : service.status === 'checking' ? 'checking…' : 'not reachable_'}</span></div>
                 </div>
               </div>
             </div>
           </div>
-          <div className="window-statusbar"><span>● LOCAL DATASET LOADED</span><span>PRE-MATCH ANALYTICS / EDUCATIONAL USE</span></div>
+          <div className="window-statusbar"><span>● LOCAL DATASET LOADED</span><span>PRE-MATCH + LIVE ANALYTICS / EDUCATIONAL USE</span></div>
         </Window>
 
         <Window id="how-it-works" title="how_it_works.txt — the prediction pipeline" tone="slate">
@@ -335,16 +567,16 @@ function App() {
           <div className="steps-grid">{steps.map((step) => <article className="step-card" key={step.number}><div className="step-number">STEP {step.number}</div><div className="step-glyph" aria-hidden="true">{step.glyph}</div><h3>{step.title}</h3><p>{step.text}</p></article>)}</div>
         </Window>
 
-        <Predictor />
+        <Predictor service={service} options={options} onRetry={recheck} />
         <Findings />
-        <Performance />
+        <Performance service={service} metrics={metrics} />
 
         <Window id="about" title="about_this_project.txt — project notes" tone="slate">
-          <div className="about-grid"><div><SectionIntro eyebrow="ABOUT / COLLEGE PROJECT" title="Built to make predictions explainable.">IPL Cricket Match Winner Prediction is a student project by Hrituraj Roy and Amul Rai. This frontend presents verified historical summaries and prepares a clear path for later FastAPI and machine-learning integration.</SectionIntro><p className="about-disclaimer"><strong>Educational-use notice:</strong> Historical patterns and future model estimates cannot guarantee a match outcome. This project is not intended for betting.</p></div><div className="about-checklist"><div><span>✓</span> Historical franchise names preserved</div><div><span>✓</span> Input checks before inference</div><div><span>○</span> FastAPI connection pending</div><div><span>○</span> Trained model and metrics pending</div></div></div>
+          <div className="about-grid"><div><SectionIntro eyebrow="ABOUT / COLLEGE PROJECT" title="Built to make predictions explainable.">IPL Cricket Match Winner Prediction is a student project by Hrituraj Roy and Amul Rai. It pairs verified historical summaries with tested models served by a FastAPI backend.</SectionIntro><p className="about-disclaimer"><strong>Educational-use notice:</strong> Historical patterns and model estimates cannot guarantee a match outcome. This project is not intended for betting.</p></div><div className="about-checklist"><div><span>✓</span> Historical franchise names preserved</div><div><span>✓</span> Input checks before inference</div><div><span>✓</span> Models tested on unseen seasons</div><div><span>{online ? '✓' : '○'}</span> FastAPI service {online ? 'connected' : 'not connected'}</div></div></div>
         </Window>
       </main>
 
-      <footer className="taskbar"><div className="taskbar-inner"><a className="taskbar-start" href="#overview"><img className="taskbar-symbol" src="/infinity-symbol.png" alt="" /> IPL ANALYTICS</a><span className="taskbar-note">IPL Cricket Match Winner Prediction · Student project · Educational use only</span><span className="taskbar-state">● DATA READY / ML OFFLINE</span></div></footer>
+      <footer className="taskbar"><div className="taskbar-inner"><a className="taskbar-start" href="#overview"><img className="taskbar-symbol" src="/infinity-symbol.png" alt="" /> IPL ANALYTICS</a><span className="taskbar-note">IPL Cricket Match Winner Prediction · Student project · Educational use only</span><span className={`taskbar-state ${online ? '' : 'taskbar-offline'}`}>● DATA READY / {online ? 'MODEL ONLINE' : 'MODEL OFFLINE'}</span></div></footer>
     </>
   )
 }
