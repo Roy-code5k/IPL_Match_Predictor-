@@ -2,7 +2,7 @@
 
 Predicting IPL match winners from historical data, leakage-safe engineered features, and machine learning, delivered as a React web app backed by a FastAPI service.
 
-> **Status:** 🚧 In development. Data pipeline and features are complete; model training is next. See [Project Status](#-project-status).
+> **Status:** 🚧 In development. Data pipeline, features, and model comparison (pre-match and live) are complete; the one-time test evaluation and saved models are next. See [Project Status](#-project-status).
 >
 > Deliveries Dataset Notebook Link - https://colab.research.google.com/drive/1GWo_tiz41R_kuatZS6lSi3WlwsU1ElzV#scrollTo=c_cQvCh0SV1A
 >
@@ -36,6 +36,8 @@ Students: Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122). The detailed pl
 
 This project estimates the probability that each of two IPL (Indian Premier League) teams wins a match. The prediction is made **after the toss and before the first ball**, using only what is known at that point: the two teams, the venue, the season, the toss winner, and the toss decision. These inputs are combined with historical statistics computed only from earlier matches, such as team ratings, recent form, head-to-head records, and venue trends.
 
+A second **live mode** updates the probability during the match from the current score: runs, wickets, completed overs and, in the chase, the target. Before the first ball the outcome is close to a coin flip (about 54% accuracy); once the match is under way the score carries much more signal (about 77% after 10 overs of the chase). Accuracy is always reported per prediction moment.
+
 It is an end-to-end data science project: data cleaning → feature engineering → model training and comparison → evaluation → a web app.
 
 ## ❓ Problem Statement
@@ -53,9 +55,11 @@ Cricket analysts, fans, and students often judge which team is likely to win by 
 - ✅ 38 leakage-safe historical features: Elo rating, overall and recent form, season record, head-to-head, venue record, home ground, toss and batting order
 - ✅ Tests that fail if a future or same-day result leaks into a feature
 - ✅ React frontend with a validated match form (not yet connected to a model)
-- 🔜 Baselines, Random Forest, and XGBoost compared on a time-based split
-- 🔜 Evaluation with accuracy, F1, ROC-AUC, confusion matrix, and calibration
-- 🔜 FastAPI service returning both teams' probabilities, a confidence label, and the model version
+- ✅ Coin-flip and Elo baselines, logistic regression, Random Forest, and XGBoost compared on a time-based split (walk-forward 2015–2022 and 2022 validation)
+- ✅ Live win-probability models for every over of both innings, built from `deliveries.csv` with a leakage-safe par score
+- ✅ Metrics: accuracy with 95% intervals, F1, ROC-AUC, log loss, Brier score, confusion matrix, and calibration tables
+- 🔜 One-time evaluation on the 2023–2024 test seasons, confidence labels, and saved model artifacts
+- 🔜 FastAPI service returning both teams' probabilities, a confidence label, and the model version (pre-match and live)
 
 ## 🛠 Tech Stack
 
@@ -100,8 +104,8 @@ Features for each match are computed only from matches on **earlier dates**, and
 │   └── 01_eda.ipynb      # Exploratory data analysis
 ├── src/
 │   ├── data/             # inspect_raw.py, cleaning.py, mappings.py (team and venue names)
-│   ├── features/         # builder.py (leakage-safe historical features)
-│   └── models/           # Training and evaluation (Phase 4)
+│   ├── features/         # builder.py (pre-match features), live.py (in-match states)
+│   └── models/           # evaluation.py (split, metrics), prematch.py, live.py
 ├── app/
 │   ├── frontend/         # React + Vite web app
 │   └── backend/          # FastAPI service (Phase 6)
@@ -120,7 +124,7 @@ Features for each match are computed only from matches on **earlier dates**, and
 | File | Used for |
 |---|---|
 | `matches.csv` | Primary: 1,095 matches (1,090 with a result), source of all features and the target |
-| `deliveries.csv` (optional) | Ball-by-ball detail, exploration only |
+| `deliveries.csv` | Ball-by-ball detail for the live mode: the score at each over and the par score |
 
 Raw files are **not committed**. Download them from Kaggle into `data/raw/`; their SHA-256 hashes are checked so everyone uses the same version. See [docs/data_source.md](docs/data_source.md).
 
@@ -128,8 +132,8 @@ Raw files are **not committed**. Download them from Kaggle into `data/raw/`; the
 
 1. **Cleaning:** merge renamed franchises and grounds, remove no-result matches, and use the match year as the season. Rules: [docs/cleaning_rules.md](docs/cleaning_rules.md).
 2. **Features:** for each match, use only matches on strictly earlier dates. Small samples are smoothed toward 50%. Spec: [docs/features.md](docs/features.md).
-3. **Modeling:** compare a coin-flip baseline, an Elo-only baseline, and logistic regression with Random Forest and XGBoost.
-4. **Evaluation:** train on 2008–2021, tune on 2022, and test once on 2023–2024. A random split is not used, because it would let models learn from matches played after the ones they predict.
+3. **Modeling:** compare a coin-flip baseline, an Elo-only baseline, and logistic regression with Random Forest and XGBoost. Pre-match models train on both team orders so the listing order cannot change a prediction. Live models (one per innings) use the score at the end of each over. Spec: [docs/live_model.md](docs/live_model.md).
+4. **Evaluation:** train on 2008–2021, tune on 2022, and test once on 2023–2024. Because 2022 has only 74 matches, candidates are also compared walk-forward over 2015–2022, and the lowest walk-forward log loss is selected. A random split is not used, because it would let models learn from matches played after the ones they predict.
 5. **Serving:** the chosen model and its feature specification are saved as one versioned artifact, loaded by the FastAPI service, and shown in the React app.
 
 ## 🚀 Getting Started
@@ -148,6 +152,8 @@ pip install -r requirements.txt
 python -m src.data.inspect_raw     # check file hashes and schema
 python -m src.data.cleaning        # data/processed/matches_clean.csv
 python -m src.features.builder     # data/processed/features.csv
+python -m src.models.prematch      # reports/prematch_models.md
+python -m src.models.live          # reports/live_models.md
 python -m pytest                   # run the tests
 ```
 
@@ -161,30 +167,44 @@ npm.cmd run dev                    # open http://localhost:5173/
 
 ## 📈 Model Performance
 
-*To be filled in after Phase 5 evaluation on the 2023–2024 test seasons.*
+Phase 4 results on data before the test seasons. The 2023–2024 test seasons have not been used yet; they are evaluated once in Phase 5. Full tables: [reports/prematch_models.md](reports/prematch_models.md) and [reports/live_models.md](reports/live_models.md).
 
-| Model | Accuracy | F1-score | ROC-AUC | Notes |
+**Pre-match (after the toss):**
+
+| Model | Walk-forward accuracy (489 matches) | ROC-AUC | Log loss | 2022 accuracy (74) |
 |---|---|---|---|---|
-| Coin flip / Elo baseline | — | — | — | Reference points |
-| Logistic regression | — | — | — | |
-| Random Forest | — | — | — | |
-| XGBoost | — | — | — | |
+| Coin flip | 47.4% | 0.500 | 0.6931 | 50.0% |
+| Elo baseline | 51.1% | 0.515 | 0.7017 | 47.3% |
+| Logistic regression | 52.6% | 0.551 | 0.6976 | 44.6% |
+| **Random Forest (selected)** | **54.2%** | 0.546 | **0.6900** | 51.4% |
+| XGBoost | 53.2% | 0.540 | 0.7101 | 44.6% |
 
-Pre-match signal in the IPL is weak (single-feature ROC-AUC is about 0.52–0.55), so accuracy is expected to be only a few points above 50%.
+**Live (selected: logistic regression for both innings):**
+
+| Prediction moment | Walk-forward accuracy | ROC-AUC | 2022 accuracy |
+|---|---|---|---|
+| 1st innings, after 10 overs | 60.4% | 0.654 | 70.3% |
+| Innings break (target known) | 63.9% | 0.732 | 74.3% |
+| Chase, after 6 overs | 71.7% | 0.824 | 74.3% |
+| Chase, after 10 overs | 77.3% | 0.851 | 82.2% |
+| Chase, after 15 overs | 82.6% | 0.915 | 85.3% |
+
+Walk-forward = each season from 2015 to 2022 predicted by a model trained only on earlier seasons. Accuracy has a 95% margin of about ±4.5 points on the walk-forward sample and ±11 points on 2022 alone. Live checkpoints count only matches still in progress at that point.
 
 ## 🗺 Project Status
 
 - [x] Phase 1: setup, data source, data dictionary, quality report
 - [x] Phase 2: cleaning pipeline and EDA ([reports/eda_findings.md](reports/eda_findings.md))
 - [x] Phase 3: leakage-safe historical features ([docs/features.md](docs/features.md))
-- [ ] Phase 4: baselines, Random Forest, XGBoost
+- [x] Phase 4: baselines, Random Forest, XGBoost, and live win-probability models
 - [ ] Phase 5: evaluation and versioned model artifact
 - [ ] Phase 6: FastAPI service and connected React UI (frontend shell already built)
 - [ ] Phases 7–8: polish, final report, and demo
 
 ## ⚠️ Limitations & Responsible Use
 
-- Uses only pre-match team, venue, and toss information: no player-level stats or live ball-by-ball data.
+- The pre-match model uses only team, venue, and toss information, with no player-level stats, so it is only a few points better than a coin flip.
+- The live mode needs the score entered by the user (no live feed) and leaves out rain-affected (D/L) matches.
 - Cricket has real randomness (form on the day, injuries, weather, pressure) that this dataset cannot capture. Predictions are probability estimates, not certainties.
 - Predictions for new teams or rarely used venues are less reliable because they have little history.
 - **This tool is for educational and analytical purposes only. It is not intended for betting, gambling, or any financial decision.**
@@ -199,7 +219,8 @@ Pre-match signal in the IPL is weak (single-feature ROC-AUC is about 0.52–0.55
 | [docs/data_dictionary.md](docs/data_dictionary.md) | Every raw column |
 | [docs/cleaning_rules.md](docs/cleaning_rules.md) | Cleaning and name-mapping rules |
 | [docs/features.md](docs/features.md) | Feature definitions and leakage rules |
-| [reports/](reports/) | Data quality, cleaning, and EDA reports |
+| [docs/live_model.md](docs/live_model.md) | Live mode: states, features, and evaluation |
+| [reports/](reports/) | Data quality, cleaning, EDA, and model comparison reports |
 
 ## 🙏 Acknowledgments
 

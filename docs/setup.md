@@ -42,7 +42,17 @@ git status                        # both manifests should show no changes
 
 Both scripts are deterministic. If `git status` shows a changed manifest, compare the `sha256` values: your output differs from the committed version, often because of a different pandas version (see `requirements.txt`).
 
-## 5. Frontend (optional at this stage)
+## 5. Compare the models (Phase 4)
+
+```powershell
+python -m src.models.prematch     # writes reports/prematch_models.md (about 10 seconds)
+python -m src.models.live         # writes reports/live_models.md and reports/figures/08_*.png (about 1 minute)
+git status                        # the reports should show no changes
+```
+
+Both scripts use fixed seeds, so the reports are reproducible. Neither script reads the 2023–2024 test seasons.
+
+## 6. Frontend (optional at this stage)
 
 ```powershell
 cd app\frontend

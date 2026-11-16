@@ -7,8 +7,8 @@
 | Students | Hrituraj Roy (PST-25-0047) and Amul Rai (PST-25-0122) |
 | Course stage | Semester 3, sections A and B |
 | Project type | Data science and machine learning, delivered as a web application |
-| Status | Phases 1–3 complete (2026-11-13). React frontend shell built early (Phase 6 UI, not connected to a model). |
-| Next milestone | Phase 4: baselines (coin flip, Elo, logistic regression), Random Forest and XGBoost on the time-based split |
+| Status | Phases 1–4 complete (Phase 4 on 2026-11-16: pre-match and live models compared; test seasons untouched). React frontend shell built early (Phase 6 UI, not connected to a model). |
+| Next milestone | Phase 5: calibration and confidence labels, one evaluation on 2023–2024, versioned artifacts for both modes |
 | Planning horizon | 12 weeks across 3 months, from 2026-09-27 |
 | Schedule | Week 7 of 12 on 2026-11-13. Data/ML work is about 2 weeks behind plan (Phase 4 was due in week 6); see the catch-up note in section 6. |
 | Repository | https://github.com/Roy-code5k/IPL_Match_Predictor- (push after every phase) |
@@ -18,6 +18,8 @@
 The product estimates the probability that either of two IPL teams will win a match. A user selects the teams, venue, season, toss winner, and toss decision. The application returns the predicted winner, a probability for each team, an uncertainty indication, and supporting historical context. It also lets users inspect model performance and team trends.
 
 The prediction is made **after the toss and before the first ball**. It uses only information available at that point and historical matches that occurred before the prediction cutoff. It is a decision-support and learning tool, not a guarantee or a betting product.
+
+A second **live mode** (added 2026-11-16) updates the win probability during the match from the score the user enters: runs, wickets and completed overs, plus the target in the chase. Pre-match signal is weak (about 54% accuracy), while the match state is far more informative (about 77% after 10 overs of the chase). Accuracy is always reported per prediction moment. See [docs/live_model.md](docs/live_model.md).
 
 ### Intended users
 
@@ -40,7 +42,7 @@ The prediction is made **after the toss and before the first ball**. It uses onl
 
 | Area | Feature | Expected behavior |
 |---|---|---|
-| Data | Load IPL match CSV data | Validate schema and record the dataset source/version. `matches.csv` is required; `deliveries.csv` is optional for exploration. |
+| Data | Load IPL match CSV data | Validate schema and record the dataset source/version. `matches.csv` is required; `deliveries.csv` is required for the live mode. |
 | Data | Clean and normalize records | Handle missing/invalid records, remove no-result matches, and standardize team and venue names with documented mappings. |
 | Analysis | Team performance notebook | Show season, team, toss, venue, missing-data, and class-balance findings. |
 | Features | Historical feature pipeline | Calculate team win rates, head-to-head, venue record, recent form, and toss features using only earlier matches. Use the same definitions for training and inference. |
@@ -51,6 +53,7 @@ The prediction is made **after the toss and before the first ball**. It uses onl
 
 ### Should have
 
+- Live win probability from a user-entered match state, with accuracy shown per prediction moment (decided 2026-11-16; models built in Phase 4).
 - Version and configuration controls for trained models.
 - Bulk scenario predictions from a custom CSV.
 - Basic model explanation, such as feature importance or SHAP where appropriate.
@@ -63,7 +66,7 @@ The prediction is made **after the toss and before the first ball**. It uses onl
 
 ### Out of scope for this release
 
-- Live ball-by-ball prediction or live score feeds.
+- Live score feeds (the live mode uses a score the user enters, not a data feed).
 - Player-level prediction features.
 - Authentication or multi-user account management.
 - Betting or gambling workflows.
@@ -86,7 +89,7 @@ The intended application states are `CONFIGURED → FEATURES_READY → PREDICTIO
 
 The source is the Kaggle **IPL Complete Dataset (2008–2024)** by `patrickb1912` (https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020), built from Cricsheet data. The URL slug still says 2008–2020; the supplied files run to the 2024 final. The version is pinned by SHA-256 hash rather than download date. Details are in [docs/data_source.md](docs/data_source.md), and every column is described in [docs/data_dictionary.md](docs/data_dictionary.md). Raw CSVs are not committed to git. The dataset owner is known to the team, so licensing is not a concern; the final report credits the publisher and Cricsheet.
 
-The cleaned dataset is `data/processed/matches_clean.csv` (1,090 decided matches), produced by `python -m src.data.cleaning` under the rules in [docs/cleaning_rules.md](docs/cleaning_rules.md). EDA results are summarised in [reports/eda_findings.md](reports/eda_findings.md). `matches.csv` is the primary match-level file; `deliveries.csv` is optional for exploration. The binary target is whether Team A wins (`1`) or Team B wins (`0`). Matches without a valid winner are excluded from supervised training and evaluation.
+The cleaned dataset is `data/processed/matches_clean.csv` (1,090 decided matches), produced by `python -m src.data.cleaning` under the rules in [docs/cleaning_rules.md](docs/cleaning_rules.md). EDA results are summarised in [reports/eda_findings.md](reports/eda_findings.md). `matches.csv` is the primary match-level file; `deliveries.csv` feeds the live mode (see [docs/live_model.md](docs/live_model.md)). The binary target is whether Team A wins (`1`) or Team B wins (`0`). Matches without a valid winner are excluded from supervised training and evaluation.
 
 ### Raw dataset inventory (initial inspection, 2026-09-28)
 
@@ -108,7 +111,7 @@ Phase 1 inspection added these findings (full output in [reports/data_quality_re
 
 Raw file SHA-256 hashes: `matches.csv` — `8A0394246D2A76B44526565F2245D8F4FEFF91BABE57AB16676A2C3D67AA0846`; `deliveries.csv` — `142236EA52950795DAB266D4AA392C7645BD1A0DB4704F0B8058AFD96E24E2C2`.
 
-Candidate inputs are match date/season, teams, venue/city, toss winner, toss decision, and historical statistics available before the match. Match outcomes and post-match fields—including winning margin and player of the match—must never be model inputs. `deliveries.csv` is exploratory only for this release.
+Candidate inputs are match date/season, teams, venue/city, toss winner, toss decision, and historical statistics available before the match. Match outcomes and post-match fields—including winning margin and player of the match—must never be model inputs. `deliveries.csv` feeds the live mode only: the score at the moment of prediction, and first-innings totals of earlier matches for the par score. Pre-match models do not use it.
 
 ### Leakage prevention
 
@@ -123,7 +126,7 @@ Candidate inputs are match date/season, teams, venue/city, toss winner, toss dec
 
 1. Establish a simple baseline (for example, logistic regression and/or a toss-winner heuristic).
 2. Train Random Forest and XGBoost with a fixed seed and recorded package versions.
-3. **Time-based split (decided 2026-11-13; no random split).** Proposed periods: train 2008–2021 (872 matches), validate 2022 (74), test 2023–2024 (144). Use validation data for tuning; keep the final test untouched until selection is complete. Confirm the periods at the start of Phase 4.
+3. **Time-based split (decided 2026-11-13; no random split; confirmed 2026-11-16).** Train 2008–2021 (872 matches), validate 2022 (74), test 2023–2024 (144). Use validation data for tuning; keep the final test untouched until selection is complete. Because 2022 alone is small, Phase 4 also compares candidates walk-forward over 2015–2022 (each season predicted by a model trained on earlier seasons). **Selection rule:** lowest walk-forward log loss (`src/models/evaluation.py`).
 4. Report accuracy, F1, ROC-AUC, confusion matrix, training time, and performance differences from baseline. Inspect errors by team and season.
 5. Review probability calibration before attaching confidence language. A gap below 10 percentage points between the two probabilities is the proposed low-confidence flag; other thresholds need to be defined and documented.
 6. Save the chosen estimator, fitted preprocessing, feature specification, historical snapshot/cutoff, metrics, and version as one compatible release set. Retain previous releases for rollback.
@@ -146,6 +149,7 @@ The Python environment uses Python 3.13 with pinned packages in `requirements.tx
 ### Initial API contract
 
 - `POST /api/v1/predict`: accepts `team1`, `team2`, `venue`, `season`, `toss_winner`, `toss_decision`, and optional `match_date`; returns predicted winner, probabilities for both teams, confidence, and model version.
+- `POST /api/v1/predict-live` (planned with the live mode): the pre-match inputs plus innings, completed overs, runs, wickets and, in the chase, the first-innings total; returns both teams' probabilities and the model version.
 - `GET /api/v1/model-metrics`: returns the active model name/version and its evaluation metrics.
 - `GET /api/v1/health`: reports application and model-load status.
 - Errors use a stable code, clear message, and request ID. Invalid teams or inconsistent toss input are rejected before inference.
@@ -172,11 +176,12 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 | 1. Setup and data inspection | ✅ Complete 2026-11-13 | `requirements.txt`, `docs/setup.md`, `docs/data_source.md`, `docs/data_dictionary.md`, `src/data/inspect_raw.py`, `reports/data_quality_report.md`, `tests/test_raw_data.py` (5 passing) |
 | 2. Cleaning and EDA | ✅ Complete 2026-11-13 | `src/data/mappings.py`, `src/data/cleaning.py`, `docs/cleaning_rules.md`, `reports/cleaning_report.md`, `data/processed/manifest.json`, `notebooks/01_eda.ipynb`, `reports/figures/`, `reports/eda_findings.md`, `tests/test_cleaning.py` (22 tests passing in total) |
 | 3. Historical features | ✅ Complete 2026-11-13 | `src/features/builder.py`, `docs/features.md`, `data/processed/features_manifest.json`, `HOME_CITIES` in `src/data/mappings.py`, `tests/test_features.py` (37 tests passing in total) |
-| 4–5. Training, evaluation | Not started | — |
+| 4. Model training | ✅ Complete 2026-11-16 | `src/models/evaluation.py`, `src/models/prematch.py`, `reports/prematch_models.md`; live mode: `src/features/live.py`, `src/models/live.py`, `docs/live_model.md`, `reports/live_models.md`, `reports/figures/08_live_win_probability_2022_final.png`; `tests/test_models.py`, `tests/test_live.py` (64 tests passing in total) |
+| 5. Evaluation and release artifact | Not started | — |
 | 6. API and core UI | UI shell done; API not started | `app/frontend/` validates the match form (36 merged grounds, optional match date) and shows "ML model not connected"; `tests/test_frontend_data.py` keeps its lists in line with the mappings; `app/backend/` is empty |
 | 7–8. Persistence, polish, handoff | Not started | — |
 
-**Catch-up note:** with 6 weeks left, prioritise the model path (Phases 4–5) and train a first baseline model next. The frontend should not grow further until a model artifact exists. Single-feature AUCs are only 0.52–0.55 (see `docs/features.md`), so expect modest accuracy. Compare every model against the coin-flip and Elo baselines, and consider team-swap augmentation.
+**Catch-up note (updated 2026-11-16):** Phase 4 is done for both modes, so the plan is about one week behind. Next is Phase 5: review calibration and set confidence labels on validation data, evaluate the selected models once on 2023–2024, and save versioned artifacts. The frontend should not grow further until those artifacts exist.
 
 ### Final definition of done
 
@@ -214,3 +219,4 @@ MongoDB is in the proposed stack for `ModelRun` and `PredictionLog` records. The
 - **2026-11-13 — Phase 3 complete:** Added the leakage-safe feature builder (`src/features/builder.py`). It produces 38 features: Elo with season regression, overall and recent form, season-to-date, head-to-head, venue record, home ground, toss and batting order, and venue/league chase rates, all smoothed toward 0.5 for small samples. Training and inference share `match_features`. Features use only strictly earlier dates (resolves same-day ordering), and `resolve_as_of` defines the prediction cutoff (resolves the cutoff decision; the API gains an optional `match_date`). Added `HOME_CITIES` to the mappings, `docs/features.md`, a hash manifest, and 14 leakage/chronology/symmetry tests (36 tests passing). Single-feature AUCs are 0.52–0.55, so pre-match signal is weak.
 - **2026-11-14 — Project review and fixes:** Full check passed (tests, package versions, byte-identical pipeline rebuild, notebook run, frontend build). Decided on React + FastAPI and rewrote the README to match the repository. Feature version 1.1.0: `NO_HOME_SEASONS` (2020–2022) turns off home flags, fixing 8 Mumbai Indians matches in the 2022 bubble wrongly marked as home (37 tests passing). Updated stale lines in the data dictionary.
 - **2026-11-14 — Frontend aligned with the data pipeline:** The venue dropdown now lists the 36 merged grounds instead of 58 raw labels, the venue panel uses merged counts (Wankhede 118, not 73), and the form has an optional match date that must fall in the chosen season (matches the API cutoff rule). Added `tests/test_frontend_data.py` so the frontend's team, venue, and count data cannot drift from the Python mappings (40 tests passing).
+- **2026-11-16 — Phase 4 complete, live mode added:** Confirmed the split and added a walk-forward 2015–2022 comparison, selecting by lowest walk-forward log loss. Pre-match: coin flip, Elo, logistic regression, Random Forest and XGBoost, with learned models trained on both team orders. Random Forest is selected (54.2% walk-forward accuracy, ROC-AUC 0.55; 51.4% on 2022), so pre-match signal is confirmed to be weak. Decided to add a live mode (scope change: live prediction from a user-entered score is now a Should-have; live feeds stay out of scope). Live states at every over end come from `deliveries.csv`, with rain-affected matches excluded and a leakage-safe par score. Logistic regression is selected for both innings: 63.9% at the innings break, 77.3% after 10 chase overs and 82.6% after 15 (walk-forward, in-progress matches only). Test seasons untouched. 64 tests passing.
