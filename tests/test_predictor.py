@@ -137,3 +137,14 @@ def test_real_release_loads_and_predicts():
     assert 0 < out["probabilities"]["Mumbai Indians"] < 1
     assert out["history_before"] > p.metadata["history_cutoff"]
     assert np.isfinite(list(out["probabilities"].values())).all()
+
+
+def test_history_cache_gives_the_same_predictions(release):
+    folder, matches, _ = release
+    p = Predictor.load(folder)
+    for m in matches.iloc[[-1, -20, -40]].itertuples(index=False):
+        cached = p.predict(**scenario(m))["probabilities"][m.team1]
+        uncached_row, _ = fb.scenario_features(p.history, **scenario(m))
+        assert cached == pytest.approx(float(p.prematch_model.predict(uncached_row)[0]), abs=1e-12)
+        assert p.predict(**scenario(m))["probabilities"][m.team1] == cached  # second call hits the cache
+    assert len(p._histories) == 3

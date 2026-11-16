@@ -26,3 +26,6 @@ data/processed/*.csv
 # Model releases are rebuilt by `python -m src.models.release`; only metadata.json (expected hashes) is committed.
 models/**/*.joblib
 models/**/*.csv
+
+# Prediction log written by the API (app/backend/store.py)
+logs/

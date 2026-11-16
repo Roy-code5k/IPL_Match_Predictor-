@@ -246,7 +246,7 @@ def _metrics_dict(m: ev.Metrics) -> dict:
 
 
 def build_release(matches: pd.DataFrame, features: pd.DataFrame, states: pd.DataFrame,
-                  deliveries: pd.DataFrame, pre: dict, test_moments) -> dict:
+                  deliveries: pd.DataFrame, pre: dict, live: dict, test_moments) -> dict:
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
     files = {}
 
@@ -304,6 +304,15 @@ def build_release(matches: pd.DataFrame, features: pd.DataFrame, states: pd.Data
             "test_accuracy_by_moment": {label: _metrics_dict(m) for label, m in test_moments
                                         if label != PREMATCH_LABEL},
         },
+        "comparison": {
+            "note": "All candidates on the 2023-2024 test seasons, trained on 2008-2022. "
+                    "Selection was fixed beforehand on 2015-2022 data.",
+            "prematch": [{"model": r["name"], "selected": k == cf.SELECTED_PREMATCH,
+                          "metrics": _metrics_dict(r["metrics"])} for k, r in pre.items()],
+            **{f"live_innings{i}": [{"model": r["name"], "selected": k == cf.SELECTED_LIVE[i],
+                                     "metrics": _metrics_dict(r["metrics"])} for k, r in live[i].items()]
+               for i in (1, 2)},
+        },
         "confidence_bands": [{"from": lowest, "label": name} for lowest, name in cf.BANDS],
         "close_call_label": cf.CLOSE,
         "inputs": {"data/processed/matches_clean.csv": sha256(fb.CLEAN_PATH),
@@ -332,7 +341,7 @@ def main() -> int:
 
     accuracy_figure(wf_moments, test_moments)
     REPORT_PATH.write_text(build_report(pre, live, wf_moments, test_moments), encoding="utf-8", newline="\n")
-    build_release(matches, features, states, deliveries, pre, test_moments)
+    build_release(matches, features, states, deliveries, pre, live, test_moments)
 
     for label, m in test_moments:
         print(f"{label:32s} test {m.accuracy:6.1%} ± {m.accuracy_ci:4.1%}  auc {m.roc_auc:.3f}  (n={m.n})")

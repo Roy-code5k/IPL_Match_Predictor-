@@ -266,6 +266,314 @@
       }
     }
   },
+  "comparison": {
+    "note": "All candidates on the 2023-2024 test seasons, trained on 2008-2022. Selection was fixed beforehand on 2015-2022 data.",
+    "prematch": [
+      {
+        "model": "Coin flip (always 50%)",
+        "selected": false,
+        "metrics": {
+          "n": 144,
+          "accuracy": 0.520833,
+          "accuracy_ci": 0.081596,
+          "f1": 0.684932,
+          "roc_auc": 0.5,
+          "log_loss": 0.693147,
+          "brier": 0.25,
+          "confusion": [
+            [
+              0,
+              69
+            ],
+            [
+              0,
+              75
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Elo baseline",
+        "selected": false,
+        "metrics": {
+          "n": 144,
+          "accuracy": 0.479167,
+          "accuracy_ci": 0.081596,
+          "f1": 0.482759,
+          "roc_auc": 0.487923,
+          "log_loss": 0.705006,
+          "brier": 0.255793,
+          "confusion": [
+            [
+              34,
+              35
+            ],
+            [
+              40,
+              35
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Logistic regression",
+        "selected": false,
+        "metrics": {
+          "n": 144,
+          "accuracy": 0.513889,
+          "accuracy_ci": 0.081635,
+          "f1": 0.453125,
+          "roc_auc": 0.541449,
+          "log_loss": 0.714326,
+          "brier": 0.26019,
+          "confusion": [
+            [
+              45,
+              24
+            ],
+            [
+              46,
+              29
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Random Forest",
+        "selected": true,
+        "metrics": {
+          "n": 144,
+          "accuracy": 0.486111,
+          "accuracy_ci": 0.081635,
+          "f1": 0.339286,
+          "roc_auc": 0.525217,
+          "log_loss": 0.698664,
+          "brier": 0.252739,
+          "confusion": [
+            [
+              51,
+              18
+            ],
+            [
+              56,
+              19
+            ]
+          ]
+        }
+      },
+      {
+        "model": "XGBoost",
+        "selected": false,
+        "metrics": {
+          "n": 144,
+          "accuracy": 0.472222,
+          "accuracy_ci": 0.081541,
+          "f1": 0.321429,
+          "roc_auc": 0.504928,
+          "log_loss": 0.725496,
+          "brier": 0.265196,
+          "confusion": [
+            [
+              50,
+              19
+            ],
+            [
+              57,
+              18
+            ]
+          ]
+        }
+      }
+    ],
+    "live_innings1": [
+      {
+        "model": "Pre-match Elo only",
+        "selected": false,
+        "metrics": {
+          "n": 2674,
+          "accuracy": 0.482049,
+          "accuracy_ci": 0.018939,
+          "f1": 0.48263,
+          "roc_auc": 0.49016,
+          "log_loss": 0.705156,
+          "brier": 0.255865,
+          "confusion": [
+            [
+              643,
+              644
+            ],
+            [
+              741,
+              646
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Logistic regression",
+        "selected": true,
+        "metrics": {
+          "n": 2674,
+          "accuracy": 0.621167,
+          "accuracy_ci": 0.018387,
+          "f1": 0.587709,
+          "roc_auc": 0.689913,
+          "log_loss": 0.637729,
+          "brier": 0.223637,
+          "confusion": [
+            [
+              939,
+              348
+            ],
+            [
+              665,
+              722
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Random Forest",
+        "selected": false,
+        "metrics": {
+          "n": 2674,
+          "accuracy": 0.638369,
+          "accuracy_ci": 0.018211,
+          "f1": 0.655749,
+          "roc_auc": 0.695852,
+          "log_loss": 0.627193,
+          "brier": 0.219316,
+          "confusion": [
+            [
+              786,
+              501
+            ],
+            [
+              466,
+              921
+            ]
+          ]
+        }
+      },
+      {
+        "model": "XGBoost",
+        "selected": false,
+        "metrics": {
+          "n": 2674,
+          "accuracy": 0.604712,
+          "accuracy_ci": 0.018531,
+          "f1": 0.605155,
+          "roc_auc": 0.68503,
+          "log_loss": 0.633107,
+          "brier": 0.223457,
+          "confusion": [
+            [
+              807,
+              480
+            ],
+            [
+              577,
+              810
+            ]
+          ]
+        }
+      }
+    ],
+    "live_innings2": [
+      {
+        "model": "Pre-match Elo only",
+        "selected": false,
+        "metrics": {
+          "n": 2673,
+          "accuracy": 0.4841,
+          "accuracy_ci": 0.018946,
+          "f1": 0.493573,
+          "roc_auc": 0.494184,
+          "log_loss": 0.704526,
+          "brier": 0.255553,
+          "confusion": [
+            [
+              622,
+              618
+            ],
+            [
+              761,
+              672
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Logistic regression",
+        "selected": true,
+        "metrics": {
+          "n": 2673,
+          "accuracy": 0.775907,
+          "accuracy_ci": 0.015808,
+          "f1": 0.797976,
+          "roc_auc": 0.864252,
+          "log_loss": 0.458085,
+          "brier": 0.151012,
+          "confusion": [
+            [
+              891,
+              349
+            ],
+            [
+              250,
+              1183
+            ]
+          ]
+        }
+      },
+      {
+        "model": "Random Forest",
+        "selected": false,
+        "metrics": {
+          "n": 2673,
+          "accuracy": 0.773288,
+          "accuracy_ci": 0.015873,
+          "f1": 0.801311,
+          "roc_auc": 0.84278,
+          "log_loss": 0.498782,
+          "brier": 0.162369,
+          "confusion": [
+            [
+              845,
+              395
+            ],
+            [
+              211,
+              1222
+            ]
+          ]
+        }
+      },
+      {
+        "model": "XGBoost",
+        "selected": false,
+        "metrics": {
+          "n": 2673,
+          "accuracy": 0.775907,
+          "accuracy_ci": 0.015808,
+          "f1": 0.80596,
+          "roc_auc": 0.856295,
+          "log_loss": 0.486524,
+          "brier": 0.156559,
+          "confusion": [
+            [
+              830,
+              410
+            ],
+            [
+              189,
+              1244
+            ]
+          ]
+        }
+      }
+    ]
+  },
   "confidence_bands": [
     {
       "from": 0.8,

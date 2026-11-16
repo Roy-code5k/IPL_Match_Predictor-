@@ -75,6 +75,17 @@ class ModelInfo(BaseModel):
     name: str
 
 
+class InputItem(BaseModel):
+    """One model input shown to the user: a pair (team1, team2) or a single value."""
+
+    label: str
+    format: Literal["number", "percent", "yesno"]
+    team1: bool | float | None = None
+    team2: bool | float | None = None
+    value: float | None = None
+    note: str | None = None
+
+
 class Prediction(BaseModel):
     mode: Literal["pre-match", "live"]
     team1: str
@@ -88,6 +99,28 @@ class Prediction(BaseModel):
     model: ModelInfo
     batting_first: str | None = None
     state: LiveState | None = None
+    inputs: list[InputItem] = Field(default_factory=list,
+                                    description="Key model inputs (from matches before history_before)")
+
+
+MAX_BATCH_ROWS = 200
+BATCH_INPUT_COLUMNS = ["team1", "team2", "venue", "season", "toss_winner", "toss_decision", "match_date",
+                       "is_playoff", "innings", "overs_done", "runs", "wickets", "first_innings_total"]
+BATCH_REQUIRED_COLUMNS = ["team1", "team2", "venue", "season", "toss_winner", "toss_decision"]
+
+
+class BatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    csv: str = Field(min_length=1, max_length=200_000,
+                     description=f"CSV text with a header row; at most {MAX_BATCH_ROWS} matches")
+
+
+class BatchResponse(BaseModel):
+    rows: int
+    succeeded: int
+    failed: int
+    csv: str
+    results: list[dict]
 
 
 class Health(BaseModel):

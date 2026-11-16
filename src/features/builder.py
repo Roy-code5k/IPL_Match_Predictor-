@@ -27,6 +27,7 @@ import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 import pandas as pd
 
@@ -335,16 +336,19 @@ def scenario_features(
     season: int,
     match_date: str | pd.Timestamp | None = None,
     is_playoff: bool = False,
+    history_for: Callable[[pd.Timestamp], History] | None = None,
 ) -> tuple[pd.DataFrame, pd.Timestamp]:
     """Inference entry point: normalise names, pick the cutoff, return one feature row.
 
     Returns (features, as_of). Only matches strictly before `as_of` are used.
+    `history_for(as_of)` may supply a cached snapshot built from the same matches
+    with `History.from_matches(matches, before=as_of)`.
     """
     team1, team2 = mappings.normalize_team(team1), mappings.normalize_team(team2)
     toss_winner = mappings.normalize_team(toss_winner)
     venue = mappings.normalize_venue(venue)
     as_of = resolve_as_of(matches, season, match_date)
-    history = History.from_matches(matches, before=as_of)
+    history = history_for(as_of) if history_for else History.from_matches(matches, before=as_of)
     feats = match_features(history, team1=team1, team2=team2, venue=venue,
                            toss_winner=toss_winner, toss_decision=toss_decision,
                            season=season, is_playoff=is_playoff)

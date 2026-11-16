@@ -9,6 +9,7 @@ with warnings.catch_warnings():
     from fastapi.testclient import TestClient
 
 from app.backend.main import create_app
+from app.backend.store import JsonlLog
 from tests.test_predictor import build_test_release
 
 
@@ -16,7 +17,9 @@ from tests.test_predictor import build_test_release
 def setup(tmp_path_factory):
     folder = tmp_path_factory.mktemp("api_release")
     matches, states = build_test_release(folder)
-    with TestClient(create_app(folder)) as client:
+    log = JsonlLog(tmp_path_factory.mktemp("api_logs"))
+    with TestClient(create_app(folder, prediction_log=log)) as client:
+        client.log = log
         yield client, matches, states
 
 
@@ -123,7 +126,7 @@ def test_options_and_metrics(setup):
 
 
 def test_missing_release_degrades_cleanly(tmp_path):
-    with TestClient(create_app(tmp_path / "missing")) as client:
+    with TestClient(create_app(tmp_path / "missing", prediction_log=JsonlLog(tmp_path))) as client:
         health = client.get("/api/v1/health").json()
         assert health["status"] == "degraded" and health["model_loaded"] is False
         m = {"team1": "Mumbai Indians", "team2": "Chennai Super Kings", "venue": "Wankhede Stadium, Mumbai",
@@ -135,3 +138,85 @@ def test_root_points_to_the_app_and_docs(setup):
     client, *_ = setup
     body = client.get("/").json()
     assert "localhost:5173" in body["app"] and body["docs"] == "/api/docs"
+
+
+# --- Phase 7: inputs, logging, batch and export ------------------------------------
+
+def test_prediction_includes_readable_inputs(setup):
+    client, matches, _ = setup
+    out = client.post("/api/v1/predict", json=body_for(matches.iloc[-1])).json()
+    labels = [item["label"] for item in out["inputs"]]
+    assert "Elo rating" in labels and "Head-to-head win rate" in labels
+    elo = out["inputs"][0]
+    assert isinstance(elo["team1"], float) and elo["format"] == "number"
+    home = next(i for i in out["inputs"] if i["label"] == "Home ground")
+    assert isinstance(home["team1"], bool)
+
+
+def test_every_prediction_is_logged_with_its_request_id(setup):
+    client, matches, _ = setup
+    before = len(client.log.read_all())
+    ok = client.post("/api/v1/predict", json=body_for(matches.iloc[-1]), headers={"X-Request-ID": "log-ok"})
+    bad = client.post("/api/v1/predict", json=body_for(matches.iloc[-1], venue="Nowhere Oval"),
+                      headers={"X-Request-ID": "log-bad"})
+    records = client.log.read_all()[before:]
+    assert [r["request_id"] for r in records] == ["log-ok", "log-bad"]
+    assert records[0]["status"] == "ok" and records[0]["result"]["team1_probability"] == ok.json()["team1_probability"]
+    assert records[0]["result"]["model_release"] == "test" and records[0]["latency_ms"] >= 0
+    assert records[1]["status"] == "error" and records[1]["error_code"] == "UNKNOWN_NAME"
+    assert bad.status_code == 400
+
+
+def batch_csv(matches, extra_rows=""):
+    rows = []
+    for m in matches.tail(3).itertuples(index=False):
+        rows.append(f"{m.team1},{m.team2},\"{m.venue}\",{m.season},{m.toss_winner},{m.toss_decision},{m.date:%Y-%m-%d},,,,")
+    header = "team1,team2,venue,season,toss_winner,toss_decision,match_date,innings,overs_done,runs,wickets"
+    return "\n".join([header, *rows]) + extra_rows
+
+
+def test_batch_predicts_good_rows_and_reports_bad_ones(setup):
+    client, matches, _ = setup
+    m = matches.iloc[-1]
+    bad_rows = (f"\n{m.team1},{m.team1},\"{m.venue}\",{m.season},{m.team1},bat,,,,,"
+                f"\n{m.team1},{m.team2},Nowhere Oval,{m.season},{m.team1},bat,,,,,"
+                f"\n{m.team1},{m.team2},\"{m.venue}\",{m.season},{m.team1},bat,,2,0,0,0")
+    r = client.post("/api/v1/predict-batch", json={"csv": batch_csv(matches, bad_rows)})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert (out["rows"], out["succeeded"], out["failed"]) == (6, 3, 3)
+    errors = [row["error"] for row in out["results"]]
+    assert errors[3].startswith("INVALID_REQUEST") and errors[4].startswith("UNKNOWN_NAME")
+    assert errors[5].startswith("INVALID_REQUEST")  # chase without a first-innings total
+    single = client.post("/api/v1/predict", json=body_for(m)).json()
+    assert out["results"][2]["team1_probability"] == single["team1_probability"]
+    lines = out["csv"].strip().splitlines()
+    assert len(lines) == 7 and lines[0].endswith("model_name,error")
+
+
+@pytest.mark.parametrize("text, code", [
+    ("team1,team2\nA,B", "INVALID_CSV"),                                   # missing columns
+    ("team1,team2,venue,season,toss_winner,toss_decision,colour\n", "INVALID_CSV"),  # unknown column
+    ("team1,team2,venue,season,toss_winner,toss_decision\n", "INVALID_CSV"),  # no rows
+])
+def test_batch_rejects_malformed_csv(setup, text, code):
+    client, *_ = setup
+    assert_error(client.post("/api/v1/predict-batch", json={"csv": text}), 400, code)
+
+
+def test_batch_row_limit(setup):
+    client, matches, _ = setup
+    m = matches.iloc[-1]
+    row = f"{m.team1},{m.team2},\"{m.venue}\",{m.season},{m.toss_winner},{m.toss_decision}"
+    text = "team1,team2,venue,season,toss_winner,toss_decision\n" + "\n".join([row] * 201)
+    assert_error(client.post("/api/v1/predict-batch", json={"csv": text}), 400, "TOO_MANY_ROWS")
+
+
+def test_log_export_is_csv_with_inputs_and_model(setup):
+    client, matches, _ = setup
+    client.post("/api/v1/predict", json=body_for(matches.iloc[-1]))
+    r = client.get("/api/v1/predictions/log.csv")
+    assert r.headers["content-type"].startswith("text/csv")
+    header, *rows = r.text.strip().splitlines()
+    assert header.startswith("logged_at,request_id,endpoint,status") and "model_release" in header
+    assert rows and "test" in rows[-1]

@@ -183,15 +183,18 @@ def live_scenario(matches: pd.DataFrame, totals_by_date: pd.DataFrame, *, team1:
                   innings: int, overs_done: int, runs: int, wickets: int,
                   first_innings_total: int | None = None,
                   match_date: str | pd.Timestamp | None = None,
-                  is_playoff: bool = False) -> tuple[pd.DataFrame, str]:
+                  is_playoff: bool = False,
+                  history_for=None) -> tuple[pd.DataFrame, str]:
     """One live feature row (columns for that innings) and the name of the batting-first side.
 
     `totals_by_date` has columns `date`, `match_id`, `total` for full-length matches
     (see `totals_table`). Only rows strictly before the cutoff are used.
+    `history_for` is passed to `scenario_features` (an optional history cache).
     """
     pre, as_of = fb.scenario_features(matches, team1=team1, team2=team2, venue=venue,
                                       toss_winner=toss_winner, toss_decision=toss_decision,
-                                      season=season, match_date=match_date, is_playoff=is_playoff)
+                                      season=season, match_date=match_date, is_playoff=is_playoff,
+                                      history_for=history_for)
     elo_bf, chase_rate = context_from_features(pre.iloc[0])
     earlier = totals_by_date[totals_by_date["date"] < as_of].sort_values(["date", "match_id"])
     par = par_score(earlier["total"].astype(float).tolist())
