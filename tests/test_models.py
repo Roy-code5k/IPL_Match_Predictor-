@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from src.features import builder as fb
+from src.models import confidence as cf
 from src.models import evaluation as ev
 from src.models import prematch as pm
 
@@ -104,3 +105,30 @@ def test_selection_picks_lowest_walk_forward_log_loss():
         return {"wf_metrics": ev.Metrics(1, 0.5, 0, 0, 0.5, log_loss, 0.25, ((0, 0), (0, 0)))}
 
     assert pm.select({"a": fake(0.70), "b": fake(0.69), "c": fake(0.71)}) == "b"
+
+
+# --- confidence labels ----------------------------------------------------------
+
+
+@pytest.mark.parametrize("prob, expected", [
+    (0.50, cf.CLOSE), (0.549, cf.CLOSE), (0.55, "Slight edge"), (0.649, "Slight edge"),
+    (0.65, "Clear edge"), (0.799, "Clear edge"), (0.80, "Strong edge"), (1.0, "Strong edge"),
+])
+def test_confidence_label_boundaries(prob, expected):
+    assert cf.label(prob) == expected
+    assert cf.label(1 - prob) == expected  # the same for either team
+
+
+def test_confidence_label_rejects_invalid_probability():
+    with pytest.raises(ValueError):
+        cf.label(1.2)
+
+
+def test_band_table_counts_every_prediction():
+    prob = np.array([0.5, 0.52, 0.4, 0.3, 0.9, 0.05, 0.7])
+    y = np.array([1, 0, 0, 0, 1, 0, 1])
+    rows = cf.band_table(y, prob)
+    assert [r[0] for r in rows] == [name for _, name in reversed(cf.BANDS)]
+    assert sum(r[2] for r in rows) == len(prob)
+    strong = next(r for r in rows if r[0] == "Strong edge")
+    assert strong[2] == 2 and strong[5] == "100.0%"  # 0.9 -> side won; 0.05 -> other side won
