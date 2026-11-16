@@ -1,0 +1,98 @@
+"""Request and response bodies for the prediction API."""
+
+from __future__ import annotations
+
+import datetime as dt
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+FIRST_SEASON = 2008
+LAST_SUPPORTED_SEASON = 2027  # data seasons (2008-2024) plus three future seasons
+MAX_RUNS = 400
+
+
+class MatchSetup(BaseModel):
+    """What is known after the toss."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    team1: str = Field(min_length=1, description="Team A")
+    team2: str = Field(min_length=1, description="Team B")
+    venue: str = Field(min_length=1)
+    season: int = Field(ge=FIRST_SEASON, le=LAST_SUPPORTED_SEASON)
+    toss_winner: str = Field(min_length=1)
+    toss_decision: Literal["bat", "field"]
+    match_date: dt.date | None = Field(default=None, description="Optional; history stops before this day")
+    is_playoff: bool = False
+
+    @model_validator(mode="after")
+    def check_consistency(self) -> "MatchSetup":
+        if self.team1 == self.team2:
+            raise ValueError("team1 and team2 must be different franchises")
+        if self.toss_winner not in (self.team1, self.team2):
+            raise ValueError("toss_winner must be team1 or team2")
+        if self.match_date is not None and self.match_date.year != self.season:
+            raise ValueError(f"match_date must fall in the {self.season} season")
+        return self
+
+
+class LiveRequest(MatchSetup):
+    """Match setup plus the score at the end of an over (or the innings break)."""
+
+    innings: Literal[1, 2]
+    overs_done: int = Field(ge=0, le=19, description="Completed overs in the current innings")
+    runs: int = Field(ge=0, le=MAX_RUNS)
+    wickets: int = Field(ge=0, le=9)
+    first_innings_total: int | None = Field(default=None, ge=0, le=MAX_RUNS)
+
+    @model_validator(mode="after")
+    def check_state(self) -> "LiveRequest":
+        if self.innings == 1:
+            if self.overs_done < 1:
+                raise ValueError("first-innings predictions need at least 1 completed over; "
+                                 "use the pre-match prediction before that")
+            if self.first_innings_total is not None:
+                raise ValueError("first_innings_total is only used in the second innings")
+        else:
+            if self.first_innings_total is None:
+                raise ValueError("first_innings_total is required in the second innings")
+            if self.runs > self.first_innings_total:
+                raise ValueError("the chase is already won; no prediction is needed")
+        return self
+
+
+class LiveState(BaseModel):
+    innings: int
+    overs_done: int
+    runs: int
+    wickets: int
+    target: int | None = None
+
+
+class ModelInfo(BaseModel):
+    release: str
+    name: str
+
+
+class Prediction(BaseModel):
+    mode: Literal["pre-match", "live"]
+    team1: str
+    team2: str
+    team1_probability: float
+    team2_probability: float
+    predicted_winner: str
+    confidence: str
+    close_call: bool
+    history_before: str = Field(description="Only matches before this date were used")
+    model: ModelInfo
+    batting_first: str | None = None
+    state: LiveState | None = None
+
+
+class Health(BaseModel):
+    status: Literal["ok", "degraded"]
+    model_loaded: bool
+    release: str | None = None
+    history_cutoff: str | None = None
+    detail: str | None = None

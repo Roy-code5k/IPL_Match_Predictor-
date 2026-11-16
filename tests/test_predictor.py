@@ -26,8 +26,14 @@ from tests.test_live import simulate
 
 @pytest.fixture(scope="module")
 def release(tmp_path_factory):
-    matches, raw = simulate(synthetic_matches(n=120))
     folder = tmp_path_factory.mktemp("release")
+    matches, states = build_test_release(folder)
+    return folder, matches, states
+
+
+def build_test_release(folder):
+    """Write a small but complete release from synthetic data into `folder`."""
+    matches, raw = simulate(synthetic_matches(n=120))
     raw.to_csv(folder / "raw_deliveries.csv", index=False)
     deliveries = lf.load_deliveries(folder / "raw_deliveries.csv")
     features = fb.build_training_features(matches)
@@ -47,12 +53,17 @@ def release(tmp_path_factory):
     files["first_innings_totals.csv"] = rl._write_csv(lf.totals_table(matches, deliveries, full),
                                                       folder / "first_innings_totals.csv")
     metadata = {"release": "test", "packages": {},
-                "prematch": {"model": "Logistic regression", "file": "prematch.joblib"},
-                "live": {f"innings{i}": {"model": "Logistic regression", "file": f"live_innings{i}.joblib"}
-                         for i in (1, 2)},
+                "history_cutoff": f"{matches['date'].max():%Y-%m-%d}",
+                "training_seasons": [int(matches["season"].min()), int(matches["season"].max())],
+                "evaluation": {"test_seasons": []},
+                "prematch": {"model": "Logistic regression", "file": "prematch.joblib", "test_metrics": {}},
+                "live": {**{f"innings{i}": {"model": "Logistic regression", "file": f"live_innings{i}.joblib"}
+                            for i in (1, 2)}, "test_accuracy_by_moment": {}},
+                "confidence_bands": [{"from": lo, "label": name} for lo, name in cf.BANDS],
+                "close_call_label": cf.CLOSE,
                 "files": files}
     (folder / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
-    return folder, matches, states
+    return matches, states
 
 
 def scenario(m):
