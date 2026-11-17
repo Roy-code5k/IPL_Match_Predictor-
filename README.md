@@ -2,7 +2,7 @@
 
 Predicting IPL match winners from historical data, leakage-safe engineered features, and machine learning, delivered as a React web app backed by a FastAPI service.
 
-> **Status:** 🚧 In development. The models are tested and served by a FastAPI service, and the React app makes pre-match and live predictions; persistence and polish are next. See [Project Status](#-project-status).
+> **Status:** ✅ Feature-complete and verified (November 2026). The models are tested and served by a FastAPI service, and the React app makes pre-match, live and batch predictions. The final report is in [reports/final_report.md](reports/final_report.md). See [Project Status](#-project-status).
 >
 > Deliveries Dataset Notebook Link - https://colab.research.google.com/drive/1GWo_tiz41R_kuatZS6lSi3WlwsU1ElzV#scrollTo=c_cQvCh0SV1A
 >
@@ -63,7 +63,8 @@ Cricket analysts, fans, and students often judge which team is likely to win by 
 - ✅ Prediction log (inputs, outputs, model version, request id, response time) with CSV export
 - ✅ Batch predictions from a CSV of up to 200 matches, with CSV download of the results
 - ✅ Each result lists the key inputs the model used; the dashboard compares every model against the baselines
-- 🔜 Final verification, report, and demo
+- ✅ Final verification (174 Python and 7 frontend tests, byte-identical rebuild, predictions well under a second), final report, and demo script
+- ✅ Past-dated scenarios are labelled as retrospective simulations, because the released model was trained through 2024-05-26
 
 ## 🛠 Tech Stack
 
@@ -114,8 +115,8 @@ Features for each match are computed only from matches on **earlier dates**, and
 │   ├── frontend/         # React + Vite web app
 │   └── backend/          # FastAPI service (main.py routes, schemas.py request/response models)
 ├── models/               # release-1.0.0/ (rebuilt by src.models.release; only metadata.json is committed)
-├── reports/              # Data quality, cleaning, and EDA reports; figures/
-├── docs/                 # Setup, data source, data dictionary, cleaning rules, feature spec
+├── reports/              # Data quality, cleaning, EDA, model and verification reports, final report; figures/
+├── docs/                 # Setup, architecture, data, features, models, limitations, demo script
 ├── tests/                # pytest suite
 ├── PROJECT.md            # Plan, decisions, and progress log
 └── requirements.txt
@@ -200,29 +201,36 @@ Selection and confidence labels were fixed on 2015–2022 data before the 2023�
 - [x] Phase 4: baselines, Random Forest, XGBoost, and live win-probability models
 - [x] Phase 5: confidence labels, one test evaluation, and versioned model release
 - [x] Phase 6: FastAPI service and connected React UI (pre-match and live)
-- [x] Phase 7: prediction log, CSV export, batch predictions, model inputs, model comparison (MongoDB decision open)
-- [ ] Phase 8: final verification, report, and demo
+- [x] Phase 7: prediction log, CSV export, batch predictions, model inputs, model comparison (prediction log kept as a file; MongoDB not needed for now)
+- [x] Phase 8: final verification, final report, and demo script (rehearsal by the team pending)
 
 ## ⚠️ Limitations & Responsible Use
 
-- The pre-match model uses only team, venue, and toss information, with no player-level stats, so it is only a few points better than a coin flip.
+- The pre-match model uses only team, venue, and toss information, with no player-level stats. It is close to a coin flip: 54% on 2015–2022 and 49% on the 2023–2024 test seasons.
 - The live mode needs the score entered by the user (no live feed) and leaves out rain-affected (D/L) matches.
 - Cricket has real randomness (form on the day, injuries, weather, pressure) that this dataset cannot capture. Predictions are probability estimates, not certainties.
 - Predictions for new teams or rarely used venues are less reliable because they have little history.
+- A scenario dated on or before 2024-05-26 is a retrospective simulation, not a forecast: the released model has already been trained on those matches. The app labels these results.
+- The full list, with evidence, is in [docs/model_limitations.md](docs/model_limitations.md).
 - **This tool is for educational and analytical purposes only. It is not intended for betting, gambling, or any financial decision.**
 
 ## 📚 Documentation
 
 | Document | Contents |
 |---|---|
+| [reports/final_report.md](reports/final_report.md) | **Final report:** method, results, the application, limitations |
 | [PROJECT.md](PROJECT.md) | Scope, decisions, plan, and progress log |
-| [docs/setup.md](docs/setup.md) | Local setup and rebuilding the data |
+| [docs/setup.md](docs/setup.md) | Local setup, rebuilding everything, and verification |
+| [docs/architecture.md](docs/architecture.md) | How the pipeline, model release, API and web app fit together |
 | [docs/data_source.md](docs/data_source.md) | Dataset source and pinned version |
 | [docs/data_dictionary.md](docs/data_dictionary.md) | Every raw column |
 | [docs/cleaning_rules.md](docs/cleaning_rules.md) | Cleaning and name-mapping rules |
 | [docs/features.md](docs/features.md) | Feature definitions and leakage rules |
 | [docs/live_model.md](docs/live_model.md) | Live mode: states, features, and evaluation |
 | [docs/model_release.md](docs/model_release.md) | Test protocol, results, confidence labels, and loading a release |
+| [docs/model_limitations.md](docs/model_limitations.md) | What the models can and cannot tell you |
+| [docs/demo_script.md](docs/demo_script.md) | Step-by-step demo with expected results and likely questions |
+| [reports/verification.md](reports/verification.md) | Final checks: tests, reproducibility, speed, browser checks |
 | [reports/](reports/) | Data quality, cleaning, EDA, and model comparison reports |
 
 ## 🙏 Acknowledgments

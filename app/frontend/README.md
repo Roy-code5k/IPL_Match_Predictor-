@@ -21,14 +21,23 @@ Open the Local URL printed by Vite, normally `http://localhost:5173/`. Vite forw
 
 For a production check: `npm.cmd run build`, then `npm.cmd run preview` (also proxies `/api`).
 
+Run `npm.cmd test` for the frontend regression tests (Node's built-in test runner; no extra packages). They cover innings-break validation and spreadsheet-safe CSV downloads.
+
+Historical scenarios whose feature cutoff falls within the model's training period are explicitly labelled **Retrospective simulation**. The date limits historical input features; the model itself remains trained through the displayed cutoff. The API, batch table and all prediction CSV downloads carry `model_trained_through` and `retrospective` alongside `history_before`.
+
+In live mode, 0 completed chase overs means the innings break, so runs and wickets must both be 0. The form and API reject nonzero values.
+
+Batch CSVs require unique, non-empty headers and the same number of cells in every nonblank row. Quote values containing commas (including venue names) and retain empty cells for unused columns. Structural errors or oversized fields return `INVALID_CSV` before any predictions are made; valid CSV rows with invalid match inputs still receive individual errors. Exported strings beginning with spreadsheet formula characters are prefixed with an apostrophe; JSON responses and stored raw inputs retain their original values.
+
 ## What each file does
 
 - `src/App.jsx` contains the window, badge, field, and chart components plus the page sections. The `Predictor` component has two modes: **before the first ball** (`POST /api/v1/predict`) and **during the match** (`POST /api/v1/predict-live`, with innings, completed overs, runs, wickets, and the first-innings total in the chase). It validates input first, using `GET /api/v1/options` to disable teams that did not play in the chosen season. The result shows both probabilities as text and a bar, the confidence label in words, the model release, and the history cutoff; API errors show their message and request id.
-- The `ModelInputs` panel lists the key inputs behind a result (from `inputs` in the API response), and **Download CSV** saves the inputs, probabilities and model version.
+- The `ModelInputs` panel lists the key inputs behind a result (from `inputs` in the API response). The single-result "Download CSV" button was removed on 2026-11-17, together with its helper code.
 - `BatchPredictor` uploads a CSV (template downloadable from the page) to `POST /api/v1/predict-batch`, shows the first 50 results, and downloads the full results CSV. It also links to the prediction log export, `GET /api/v1/predictions/log.csv`.
-- `src/api.js` is the small fetch client, plus the `toCsv` and `downloadText` helpers for downloads made in the browser. Every API error becomes an `ApiError` with the server's `code`, `message`, and `request_id`; an unreachable server becomes `OFFLINE`.
+- `src/api.js` is the small fetch client and download helper, re-exporting `toCsv` from `src/csv.js`. Every API error becomes an `ApiError` with the server's `code`, `message`, and `request_id`; an unreachable server becomes `OFFLINE`.
+- `src/csv.js` formats spreadsheet-safe CSV downloads. `src/validation.js` validates the match form, including the innings-break constraint.
 - `src/data.js` contains verified descriptive totals, franchise name mappings, venue choices, and the selectable seasons (2008–2027; seasons after 2024 use all history up to May 2024).
-- `src/styles.css` defines the desktop visual system, responsive layouts, and light/dark themes.
+- `src/styles.css` defines the desktop visual system, and responsive layouts. The app has a single light theme (the night-mode toggle was removed on 2026-11-17).
 - `src/main.jsx` mounts the React app. `index.html` is Vite's page entry.
 - `public/infinity-symbol.png` is the transparent symbol supplied for the project branding.
 

@@ -83,3 +83,29 @@ npm.cmd run dev
 Open http://localhost:5173/. Vite forwards `/api` to port 8000. See `app/frontend/README.md`.
 
 Every prediction is appended to `logs/predictions.jsonl` (not committed). Set `IPL_LOG_DIR` to use another folder, or `IPL_LOG=off` to turn logging off. Download the log as CSV from the Batch section or http://127.0.0.1:8000/api/v1/predictions/log.csv.
+
+## 8. Verify everything (Phase 8)
+
+To check a fresh copy end to end, run steps 3–6 in order, then the tests and a frontend build:
+
+```powershell
+python -m pytest                  # 174 tests, about 20 seconds
+git status                        # must show no changes after steps 4-6
+cd app\frontend; npm.cmd test     # 7 frontend tests (CSV export, form validation)
+npm.cmd run build
+```
+
+Steps 3–6 take about 1 minute 45 seconds in total. If `python -m pytest` says "No module named pytest", the virtual environment is not active: activate it, or call `.venv\Scripts\python.exe -m pytest`. Results of the last full check, including prediction timings and the browser checks, are in [reports/verification.md](../reports/verification.md). [demo_script.md](demo_script.md) has a run-through of the app with the expected numbers.
+
+## 9. Optional pre-match accuracy experiments
+
+After preparing the original raw and processed data, run:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests/test_performance_features.py tests/test_prematch_experiment.py
+.venv\Scripts\python.exe -m src.models.prematch_experiment
+```
+
+This compares recent batting/bowling features and training recency with the existing pre-match baseline. It saves `reports/prematch_v2_protocol.json` before fitting, writes the comparison to `reports/prematch_v2_experiment.md` and `.json`, and regenerates `data/processed/prematch_v2_features.csv` and `prematch_v2_predictions.csv`. It uses existing dependencies and does not rebuild or replace the serving release. It takes about 50 seconds, and a rerun writes byte-identical reports. The protocol records hashes of the experiment code, so editing that code changes `prematch_v2_protocol.json`.
+
+The 2023–2024 seasons have already been inspected. The report labels their results exploratory; they are not a new untouched test. Candidate selection uses only 2015–2022 development predictions, and all 16 configurations are reported. See [the experiment report](../reports/prematch_v2_experiment.md) for the selection rule, feature definitions, uncertainty and results.

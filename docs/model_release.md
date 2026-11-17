@@ -51,6 +51,10 @@ The build is deterministic: rebuilding gives byte-identical files, so `git statu
 
 ## Using a release
 
+A scenario whose feature cutoff falls on or before the release's training cutoff is a **retrospective simulation**. Selecting an old match date limits the historical input features, but does not retrain the model as of that date. It must not be presented as an unseen forecast or used to measure historical predictive accuracy. The held-out evaluation above remains separate.
+
+Every prediction now includes `history_before` (the historical feature cutoff), `model_trained_through` (the last date used to train the fitted model), and `retrospective` (true when the feature cutoff is on or before the training cutoff). The app labels retrospective results in both prediction modes and in batch results; batch and log CSVs include these fields too. Older log entries leave the new fields blank because that context was not recorded.
+
 ```python
 from src.models.predictor import Predictor
 
@@ -64,4 +68,4 @@ p.predict_live(team1="Mumbai Indians", team2="Chennai Super Kings",
                innings=2, overs_done=10, runs=95, wickets=2, first_innings_total=185)
 ```
 
-Both return the two teams' probabilities, the predicted winner, the confidence label, a `close_call` flag, the history cutoff and the model release. The live result also names the batting-first side and echoes the state. Unknown names raise `UnknownNameError`, an impossible state raises `ValueError`, and a missing or altered release raises `ReleaseError`. A prediction takes about 0.35 seconds locally.
+Both return the two teams' probabilities, the predicted winner, the confidence label, a `close_call` flag, the history cutoff and the model release. The live result also names the batting-first side and echoes the state. Unknown names raise `UnknownNameError`, an impossible state raises `ValueError`, and a missing or altered release raises `ReleaseError`. Loading a release takes about 6.5 seconds, including imports and hash checks. After that, a pre-match prediction takes about 33 ms and a live prediction about 4 ms (measured in Phase 8, see [reports/verification.md](../reports/verification.md)).
