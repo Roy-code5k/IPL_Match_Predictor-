@@ -1,0 +1,222 @@
+{
+  "experiment": "prematch-v2-performance-recency-1",
+  "development_seasons": [
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022
+  ],
+  "exploratory_seasons": [
+    2023,
+    2024
+  ],
+  "selection": "highest pooled development accuracy, then lowest log loss, then candidate key",
+  "warning": "2023-2024 were already inspected; no fresh holdout or automatic promotion",
+  "candidates": [
+    {
+      "model": "random_forest",
+      "features": "base",
+      "policy": "all"
+    },
+    {
+      "model": "random_forest",
+      "features": "base",
+      "policy": "last_3"
+    },
+    {
+      "model": "random_forest",
+      "features": "base",
+      "policy": "last_5"
+    },
+    {
+      "model": "random_forest",
+      "features": "base",
+      "policy": "decay_2"
+    },
+    {
+      "model": "random_forest",
+      "features": "performance",
+      "policy": "all"
+    },
+    {
+      "model": "random_forest",
+      "features": "performance",
+      "policy": "last_3"
+    },
+    {
+      "model": "random_forest",
+      "features": "performance",
+      "policy": "last_5"
+    },
+    {
+      "model": "random_forest",
+      "features": "performance",
+      "policy": "decay_2"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "base",
+      "policy": "all"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "base",
+      "policy": "last_3"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "base",
+      "policy": "last_5"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "base",
+      "policy": "decay_2"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "performance",
+      "policy": "all"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "performance",
+      "policy": "last_3"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "performance",
+      "policy": "last_5"
+    },
+    {
+      "model": "logistic_regression",
+      "features": "performance",
+      "policy": "decay_2"
+    }
+  ],
+  "feature_version": "prematch-performance-1.0.0",
+  "features": [
+    "is_playoff",
+    "is_neutral_country",
+    "home_a",
+    "home_b",
+    "toss_won_a",
+    "toss_field",
+    "a_bats_first",
+    "elo_a",
+    "elo_b",
+    "elo_diff",
+    "elo_prob_a",
+    "win_rate_a",
+    "win_rate_b",
+    "win_rate_diff",
+    "log_played_a",
+    "log_played_b",
+    "form5_a",
+    "form5_b",
+    "form5_diff",
+    "form10_a",
+    "form10_b",
+    "form10_diff",
+    "season_win_rate_a",
+    "season_win_rate_b",
+    "season_win_rate_diff",
+    "season_played_a",
+    "season_played_b",
+    "prev_season_win_rate_a",
+    "prev_season_win_rate_b",
+    "h2h_win_rate_a",
+    "h2h_played",
+    "venue_win_rate_a",
+    "venue_win_rate_b",
+    "venue_played_a",
+    "venue_played_b",
+    "venue_chase_rate",
+    "batting_order_rate_a",
+    "recent_chase_rate",
+    "bat_run_rate_a",
+    "bat_run_rate_b",
+    "bat_run_rate_diff",
+    "bat_wickets_per_120_a",
+    "bat_wickets_per_120_b",
+    "bat_wickets_per_120_diff",
+    "bat_powerplay_rate_a",
+    "bat_powerplay_rate_b",
+    "bat_powerplay_rate_diff",
+    "bat_death_rate_a",
+    "bat_death_rate_b",
+    "bat_death_rate_diff",
+    "bowl_run_rate_a",
+    "bowl_run_rate_b",
+    "bowl_run_rate_diff",
+    "bowl_wickets_per_120_a",
+    "bowl_wickets_per_120_b",
+    "bowl_wickets_per_120_diff",
+    "bowl_powerplay_rate_a",
+    "bowl_powerplay_rate_b",
+    "bowl_powerplay_rate_diff",
+    "bowl_death_rate_a",
+    "bowl_death_rate_b",
+    "bowl_death_rate_diff",
+    "performance_matches_a",
+    "performance_matches_b"
+  ],
+  "team_window": 10,
+  "league_window": 60,
+  "rate_definitions": {
+    "run_rate": [
+      "runs",
+      "balls",
+      6.0,
+      240.0,
+      8.0
+    ],
+    "wickets_per_120": [
+      "wickets",
+      "balls",
+      120.0,
+      240.0,
+      6.0
+    ],
+    "powerplay_rate": [
+      "powerplay_runs",
+      "powerplay_balls",
+      6.0,
+      72.0,
+      7.5
+    ],
+    "death_rate": [
+      "death_runs",
+      "death_balls",
+      6.0,
+      60.0,
+      10.0
+    ]
+  },
+  "half_life_years": 2.0,
+  "estimators": {
+    "random_forest": "RandomForestClassifier(max_depth=5, min_samples_leaf=20, n_estimators=500,\n                       n_jobs=-1, random_state=42)",
+    "logistic_regression": "Pipeline(steps=[('standardscaler', StandardScaler()),\n                ('logisticregression',\n                 LogisticRegression(C=0.1, max_iter=5000))])"
+  },
+  "input_hashes": {
+    "data\\processed\\matches_clean.csv": "37DA145431129F79E0DA499FCF4708E0D679D6A0F674FE94E88FA08B49C8A232",
+    "data\\processed\\features.csv": "FF3D6D6F5B8C9A82C94E5AC26D54E2CC0D159739A186EDC19523E06F9C466813",
+    "data\\raw\\deliveries.csv": "142236EA52950795DAB266D4AA392C7645BD1A0DB4704F0B8058AFD96E24E2C2",
+    "data\\raw\\matches.csv": "8A0394246D2A76B44526565F2245D8F4FEFF91BABE57AB16676A2C3D67AA0846"
+  },
+  "code_hashes": {
+    "src\\models\\prematch_experiment.py": "83E809287756754CB2894BF2162DABCEA4CF3666989D92F07FA81C3AC34E57DB",
+    "src\\features\\performance.py": "1E8D330426CBBBA2606808F92E43040930AB6518873B3EE4B914837362601486",
+    "src\\models\\prematch.py": "D5AC17C13EE4AA13A31723DCC4CAE251CFFDE39DBCFFD4B1948CC203EAC0D09B",
+    "src\\features\\builder.py": "89E8EB550EB303D3F045A611552A4463161DED736E7D4CAC9457D58A5C11C126"
+  },
+  "packages": {
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "scikit-learn": "1.9.1"
+  }
+}
