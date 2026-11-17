@@ -22,26 +22,6 @@
   scroll-behavior: smooth;
 }
 
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --desktop: #0a343b;
-  --desktop-dot: #0f4b52;
-  --panel: #333941;
-  --panel-light: #242a32;
-  --panel-muted: #3d444c;
-  --ink: #f1f0e9;
-  --muted: #c2c6ca;
-  --line: #11171b;
-  --shadow-dark: #171b20;
-  --shadow-light: #626a72;
-  --navy: #b7c4ff;
-  --blue: #135993;
-  --red: #ff6a6d;
-  --green: #5ed491;
-  --terminal: #03100d;
-  --terminal-ink: #79ff9f;
-}
-
 * { box-sizing: border-box; }
 html { scroll-padding-top: 84px; }
 body { margin: 0; min-width: 320px; color: var(--ink); background-color: var(--desktop); background-image: radial-gradient(var(--desktop-dot) 0.85px, transparent 0.85px); background-size: 5px 5px; }
@@ -63,7 +43,6 @@ a { color: inherit; }
 .button:hover { filter: brightness(1.08); }
 .button:active { transform: translate(1px, 1px); border-color: var(--shadow-dark) var(--shadow-light) var(--shadow-light) var(--shadow-dark); box-shadow: none; }
 .button-primary { color: white; background: #071282; border-color: #b3c7ff #020747 #020747 #b3c7ff; }
-.theme-toggle { white-space: nowrap; padding-inline: 13px; min-height: 38px; }
 
 .desktop { max-width: 1380px; margin: 0 auto; padding: 50px 18px 42px; display: grid; gap: 32px; }
 .window { background: var(--panel); border: 2px solid; border-color: var(--shadow-light) var(--shadow-dark) var(--shadow-dark) var(--shadow-light); box-shadow: 2px 3px 0 rgba(0,0,0,.28); scroll-margin-top: 84px; }
@@ -165,7 +144,6 @@ a { color: inherit; }
 .probability-bar { display: flex; gap: 2px; height: 18px; padding: 2px; background: var(--panel-light); border: 1px solid; border-color: var(--shadow-dark) var(--shadow-light) var(--shadow-light) var(--shadow-dark); }
 .probability-bar span { display: block; height: 100%; }
 .probability-team1 { background: #0b4fb0; }.probability-team2 { background: #bb1619; }
-:root[data-theme='dark'] .probability-team1 { background: #5b8fe6; }:root[data-theme='dark'] .probability-team2 { background: #ff6a6d; }
 .result-state { margin: 4px 0 0; text-align: center; color: var(--muted); font: 12px 'DM Mono', Consolas, monospace; }
 .result-alert-close { background: color-mix(in srgb, #f2ad21 16%, var(--panel-light)); border-color: #a86f00; }
 .result-alert-close strong { color: var(--ink); }.result-alert-close .alert-icon { background: #8a5a00; }
@@ -232,7 +210,6 @@ a { color: inherit; }
 @media (max-width: 1130px) {
   .topbar-inner { flex-wrap: wrap; gap: 7px 20px; }
   .topbar nav { order: 3; flex-basis: 100%; overflow-x: auto; gap: 18px; padding: 4px 0 1px; }
-  .theme-toggle { margin-left: auto; }
   .hero-grid { grid-template-columns: 1fr .8fr; }
   .hero-copy { padding: 30px 14px 30px 28px; }
   .hero-visual { padding: 25px 22px 25px 5px; }
@@ -249,7 +226,7 @@ a { color: inherit; }
 }
 
 @media (max-width: 540px) {
-  .topbar-inner { padding: 6px 12px; }.brand { font-size: 16px; }.theme-toggle { min-height: 32px; padding: 5px 9px; font-size: 12px; }.topbar nav { gap: 16px; }.topbar nav a { font-size: 12px; }
+  .topbar-inner { padding: 6px 12px; }.brand { font-size: 16px; }.topbar nav { gap: 16px; }.topbar nav a { font-size: 12px; }
   .desktop { padding-inline: 10px; }.window-titlebar { font-size: 12px; }.window-body { padding: 15px; }.hero-copy { padding: 24px 17px 3px; }.hero-copy h1 { font-size: clamp(34px, 9vw, 48px); margin-top: 18px; }.hero-copy > p { font-size: 16px; }.hero-actions { margin: 20px 0 24px; }.hero-actions .button { flex: 1 1 170px; padding-inline: 9px; }.hero-stats { gap: 5px; }.stat-card { padding: 7px; min-height: 105px; }.stat-card strong { font-size: 19px; }.stat-card span { font-size: 11px; }.stat-card small { font-size: 10px; }.hero-visual { padding: 16px 17px 22px; }.floating-body { padding: 16px; }.window-statusbar { font-size: 9px; }.window-statusbar span:last-child { display: none; }
   .steps-grid, .findings-grid, .form-grid, .metric-grid, .mode-switch { grid-template-columns: 1fr; }.field-spacer { display: none; }.finding-card:last-child { grid-column: auto; }.step-card { min-height: 0; }.result-readouts { grid-template-columns: 1fr; }.result-readouts > div { min-height: 0; }.predictor-heading, .performance-heading { flex-direction: column; }.source-strip { overflow-wrap: anywhere; }.taskbar-note { display: none; }
 }

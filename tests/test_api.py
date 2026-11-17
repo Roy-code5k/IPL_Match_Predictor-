@@ -1,5 +1,7 @@
 """API tests against a small synthetic release (no Kaggle data needed)."""
 
+import csv
+import io
 import warnings
 
 import pytest
@@ -8,7 +10,7 @@ with warnings.catch_warnings():
     warnings.filterwarnings("ignore", message="Using `httpx` with `starlette.testclient`")
     from fastapi.testclient import TestClient
 
-from app.backend.main import create_app
+from app.backend.main import create_app, parse_batch, to_csv
 from app.backend.store import JsonlLog
 from tests.test_predictor import build_test_release
 
@@ -204,6 +206,23 @@ def test_batch_rejects_malformed_csv(setup, text, code):
     assert_error(client.post("/api/v1/predict-batch", json={"csv": text}), 400, code)
 
 
+@pytest.mark.parametrize("text", ["", "﻿", "   \n  \n", "\r\n\r\n", ",,,\n"])
+def test_batch_empty_file_says_empty(setup, text):
+    client, *_ = setup
+    response = client.post("/api/v1/predict-batch", json={"csv": text})
+    assert_error(response, 400, "INVALID_CSV")
+    assert "empty" in response.json()["error"]["message"]
+
+
+def test_batch_header_after_blank_lines_is_accepted(setup):
+    client, matches, _ = setup
+    m = matches.iloc[-1]
+    text = ("\n\nteam1,team2,venue,season,toss_winner,toss_decision\n"
+            f'{m.team1},{m.team2},"{m.venue}",{m.season},{m.toss_winner},{m.toss_decision}\n')
+    out = client.post("/api/v1/predict-batch", json={"csv": text}).json()
+    assert out["rows"] == 1
+
+
 def test_batch_row_limit(setup):
     client, matches, _ = setup
     m = matches.iloc[-1]
@@ -235,3 +254,114 @@ def test_batch_live_rows_and_csv_booleans(setup):
     assert out["results"][0]["mode"] == "live"
     assert ",true," in out["csv"] or ",false," in out["csv"]
     assert "True" not in out["csv"] and "False" not in out["csv"]
+    assert out["results"][0]["retrospective"] is True
+    exported = next(csv.DictReader(io.StringIO(out["csv"])))
+    assert exported["retrospective"] == "true"
+    assert exported["model_trained_through"] == f"{matches.date.max():%Y-%m-%d}"
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_historical_label_reaches_api_and_log_export(setup, live):
+    client, matches, _ = setup
+    m = matches.iloc[-1]
+    state = dict(innings=2, overs_done=0, runs=0, wickets=0, first_innings_total=180) if live else {}
+    endpoint = "predict-live" if live else "predict"
+    request_id = f"retrospective-{endpoint}"
+    r = client.post(f"/api/v1/{endpoint}", json=body_for(m, **state),
+                    headers={"X-Request-ID": request_id})
+    assert r.status_code == 200
+    assert r.json()["retrospective"] is True
+    assert r.json()["model_trained_through"] == f"{matches.date.max():%Y-%m-%d}"
+    exported = list(csv.DictReader(io.StringIO(client.get("/api/v1/predictions/log.csv").text)))
+    row = next(row for row in exported if row["request_id"] == request_id)
+    assert row["retrospective"] == "true"
+    assert row["model_trained_through"] == r.json()["model_trained_through"]
+
+
+@pytest.mark.parametrize("runs,wickets", [(1, 0), (0, 1), (100, 5)])
+def test_innings_break_rejects_nonzero_score(setup, runs, wickets):
+    client, matches, _ = setup
+    r = client.post("/api/v1/predict-live", json=body_for(
+        matches.iloc[-1], innings=2, overs_done=0, runs=runs, wickets=wickets, first_innings_total=180))
+    assert_error(r, 422, "INVALID_REQUEST")
+    assert "innings break" in r.json()["error"]["message"]
+
+
+def csv_text(fields, rows):
+    out = io.StringIO(newline="")
+    writer = csv.writer(out)
+    writer.writerows([fields, *rows])
+    return out.getvalue()
+
+
+@pytest.mark.parametrize("malformation", ["duplicate", "duplicate_spaces", "empty_header", "extra_cell",
+                                         "missing_cell", "unterminated_quote", "bad_quote", "large_field",
+                                         "large_header"])
+def test_csv_structure_errors_never_make_predictions(setup, malformation):
+    client, matches, _ = setup
+    fields = ["team1", "team2", "venue", "season", "toss_winner", "toss_decision"]
+    body = body_for(matches.iloc[-1])
+    row = [body[k] for k in fields]
+    if malformation in ("duplicate", "duplicate_spaces"):
+        text = csv_text(fields + ["season" if malformation == "duplicate" else " season "], [row + [2026]])
+    elif malformation == "empty_header":
+        text = csv_text(fields + [""], [row + ["discarded"]])
+    elif malformation == "extra_cell":
+        text = csv_text(fields, [row, row + ["discarded"]])
+    elif malformation == "missing_cell":
+        text = csv_text(fields, [row, row[:-1]])
+    elif malformation == "unterminated_quote":
+        text = csv_text(fields, [row]) + '"not closed'
+    elif malformation == "bad_quote":
+        text = csv_text(fields, [row]) + '"closed"trailing,other\n'
+    elif malformation == "large_field":
+        text = csv_text(fields, [row, ["x" * 140000, *row[1:]]])
+    else:
+        text = csv_text(["x" * 140000, *fields[1:]], [row])
+    before = len(client.log.read_all())
+    assert_error(client.post("/api/v1/predict-batch", json={"csv": text}), 400, "INVALID_CSV")
+    assert len(client.log.read_all()) == before
+
+
+def test_csv_parser_preserves_quoted_values_and_empty_optional_cells():
+    fields = ["team1", "team2", "venue", "season", "toss_winner", "toss_decision", "match_date"]
+    text = "\ufeff" + csv_text(fields, [['Team "A"\nname', 'Team B', 'Ground, City', 2025, 'Team B', 'bat', '']])
+    row, = parse_batch(text + "\r\n")
+    assert row["team1"] == 'Team "A"\nname'
+    assert row["venue"] == "Ground, City"
+    assert row["match_date"] == ""
+
+
+@pytest.mark.parametrize("value", ["=1+1", "+1+1", "-1+1", "@SUM(1)", "  =1+1", "\t=1+1",
+                                  "\r=1+1", "\n=1+1", "\ufeff =1+1", "\x00=1+1",
+                                  '=HYPERLINK("example","label")'])
+def test_csv_exports_protect_formula_strings(value):
+    text = to_csv([{"input": value, "numeric": -1, "flag": False}], ["input", "numeric", "flag"])
+    row, = list(csv.DictReader(io.StringIO(text, newline="")))
+    assert row == {"input": "'" + value, "numeric": "-1", "flag": "false"}
+
+
+def test_batch_and_log_exports_escape_formulas_without_changing_raw_inputs(setup):
+    client, matches, _ = setup
+    body = body_for(matches.iloc[-1], venue="=1+1")
+    text = csv_text(list(body), [list(body.values())])
+    response = client.post("/api/v1/predict-batch", json={"csv": text}, headers={"X-Request-ID": "=2+2"})
+    assert response.status_code == 200
+    out = response.json()
+    assert out["failed"] == 1 and out["results"][0]["venue"] == "=1+1"
+    row, = list(csv.DictReader(io.StringIO(out["csv"])))
+    assert row["venue"] == "'=1+1"
+    assert client.log.read_all()[-1]["inputs"]["venue"] == "=1+1"
+    log_rows = list(csv.DictReader(io.StringIO(client.get("/api/v1/predictions/log.csv").text)))
+    assert log_rows[-1]["venue"] == "'=1+1" and log_rows[-1]["request_id"] == "'=2+2"
+
+
+def test_batch_innings_break_reports_bad_row_and_keeps_valid_row(setup):
+    client, matches, _ = setup
+    good = body_for(matches.iloc[-1], innings=2, overs_done=0, runs=0, wickets=0, first_innings_total=180)
+    bad = {**good, "runs": 100, "wickets": 5}
+    r = client.post("/api/v1/predict-batch", json={"csv": csv_text(list(good), [list(bad.values()), list(good.values())])})
+    assert r.status_code == 200
+    out = r.json()
+    assert (out["failed"], out["succeeded"]) == (1, 1)
+    assert "innings break" in out["results"][0]["error"]

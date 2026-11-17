@@ -23,6 +23,7 @@ import csv
 import io
 import logging
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -43,7 +44,8 @@ from src.models.release import RELEASE_DIR
 log = logging.getLogger("ipl.api")
 
 RESULT_COLUMNS = ["mode", "team1_probability", "team2_probability", "predicted_winner", "confidence",
-                  "close_call", "history_before", "model_release", "model_name"]
+                  "close_call", "history_before", "model_trained_through", "retrospective",
+                  "model_release", "model_name"]
 LOG_COLUMNS = (["logged_at", "request_id", "endpoint", "status", "error_code", "latency_ms"]
                + schemas.BATCH_INPUT_COLUMNS + RESULT_COLUMNS)
 
@@ -79,16 +81,27 @@ def result_fields(prediction: schemas.Prediction | None) -> dict:
     return {"mode": prediction.mode, "team1_probability": prediction.team1_probability,
             "team2_probability": prediction.team2_probability, "predicted_winner": prediction.predicted_winner,
             "confidence": prediction.confidence, "close_call": prediction.close_call,
-            "history_before": prediction.history_before, "model_release": prediction.model.release,
+            "history_before": prediction.history_before,
+            "model_trained_through": prediction.model_trained_through,
+            "retrospective": prediction.retrospective, "model_release": prediction.model.release,
             "model_name": prediction.model.name}
 
 
+def csv_value(value):
+    """Keep untrusted strings as spreadsheet text, while preserving numeric types."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, str) and re.match(r"^[\s\x00-\x1f\ufeff]*[=+\-@]|^[\t\r\n]", value):
+        return "'" + value
+    return value
+
+
 def to_csv(rows: list[dict], columns: list[str]) -> str:
-    """CSV text; booleans written as true/false, matching the browser's single-result download."""
+    """Spreadsheet-safe CSV; booleans written as true/false, numeric values unchanged."""
     out = io.StringIO()
-    writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
+    writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore", lineterminator="\r\n")
     writer.writeheader()
-    writer.writerows({k: (str(v).lower() if isinstance(v, bool) else v) for k, v in row.items()} for row in rows)
+    writer.writerows({k: csv_value(v) for k, v in row.items()} for row in rows)
     return out.getvalue()
 
 
@@ -164,6 +177,7 @@ def create_app(release_dir: Path | None = None, prediction_log: PredictionLog | 
             team2_probability=round(result["probabilities"][t2], 4),
             predicted_winner=result["predicted_winner"], confidence=result["confidence"],
             close_call=result["close_call"], history_before=result["history_before"],
+            model_trained_through=result["model_trained_through"], retrospective=result["retrospective"],
             model=schemas.ModelInfo(**result["model"]),
             batting_first=result.get("batting_first"),
             state=schemas.LiveState(**result["state"]) if "state" in result else None,
@@ -322,10 +336,23 @@ def create_app(release_dir: Path | None = None, prediction_log: PredictionLog | 
 
 def parse_batch(text: str) -> list[dict[str, str]]:
     """Rows of a batch CSV as stripped strings. Raises ApiError for a malformed file."""
-    reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
-    if not reader.fieldnames:
+    reader = csv.reader(io.StringIO(text.lstrip("\ufeff"), newline=""), strict=True)
+    try:
+        return _batch_rows(reader)
+    except csv.Error as exc:
+        raise ApiError(400, "INVALID_CSV", f"Cannot read CSV near line {reader.line_num}: {exc}.") from None
+
+
+def _batch_rows(reader) -> list[dict[str, str]]:
+    # The header is the first row with any text, so an empty or blank-lines-only file reads as empty.
+    header = next((row for row in reader if any(cell.strip() for cell in row)), None)
+    if header is None:
         raise ApiError(400, "INVALID_CSV", "The CSV is empty. It needs a header row.")
-    fields = [(name or "").strip() for name in reader.fieldnames]
+    fields = [name.strip() for name in header]
+    if any(not name for name in fields):
+        raise ApiError(400, "INVALID_CSV", "Every CSV column needs a non-empty header.")
+    if len(set(fields)) != len(fields):
+        raise ApiError(400, "INVALID_CSV", "CSV column headers must be unique (including after trimming spaces).")
     missing = [c for c in schemas.BATCH_REQUIRED_COLUMNS if c not in fields]
     unknown = [c for c in fields if c and c not in schemas.BATCH_INPUT_COLUMNS]
     if missing or unknown:
@@ -335,14 +362,18 @@ def parse_batch(text: str) -> list[dict[str, str]]:
                        f". Allowed columns: {', '.join(schemas.BATCH_INPUT_COLUMNS)}.")
     rows = []
     for raw in reader:
-        row = {(k or "").strip(): (v or "").strip() for k, v in raw.items() if k is not None}
-        if any(row.values()):
-            rows.append({c: row.get(c, "") for c in schemas.BATCH_INPUT_COLUMNS})
+        if not any(cell.strip() for cell in raw):
+            continue
+        if len(raw) != len(fields):
+            raise ApiError(400, "INVALID_CSV", f"CSV line {reader.line_num} has {len(raw)} cells; "
+                                              f"the header has {len(fields)}. Quote values containing commas "
+                                              "and include empty cells for unused columns.")
+        row = dict(zip(fields, (cell.strip() for cell in raw)))
+        rows.append({c: row.get(c, "") for c in schemas.BATCH_INPUT_COLUMNS})
+        if len(rows) > schemas.MAX_BATCH_ROWS:
+            raise ApiError(400, "TOO_MANY_ROWS", f"At most {schemas.MAX_BATCH_ROWS} matches per batch.")
     if not rows:
         raise ApiError(400, "INVALID_CSV", "The CSV has a header but no matches.")
-    if len(rows) > schemas.MAX_BATCH_ROWS:
-        raise ApiError(400, "TOO_MANY_ROWS", f"At most {schemas.MAX_BATCH_ROWS} matches per batch "
-                                             f"({len(rows)} given).")
     return rows
 
 

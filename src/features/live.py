@@ -68,6 +68,8 @@ def state_features(*, innings: int, overs_done: int, runs: int, wickets: int,
     elif innings == 2:
         if not 0 <= overs_done < OVERS:
             raise ValueError("innings 2 states need 0-19 completed overs")
+        if overs_done == 0 and (runs != 0 or wickets != 0):
+            raise ValueError("0 overs means the innings break: runs and wickets must both be 0")
         if target is None or not 0 <= runs < target:
             raise ValueError("innings 2 needs a target above the runs scored so far")
     else:

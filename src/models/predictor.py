@@ -143,6 +143,7 @@ class Predictor:
                 model_name: str, **extra) -> dict:
         team1, team2 = mappings.normalize_team(team1), mappings.normalize_team(team2)
         label = cf.label(prob_team1)
+        trained_through = pd.Timestamp(self.metadata["history_cutoff"])
         return {
             "mode": mode,
             "team1": team1,
@@ -152,13 +153,18 @@ class Predictor:
             "confidence": label,
             "close_call": label == cf.CLOSE,
             "history_before": f"{as_of:%Y-%m-%d}",
+            "model_trained_through": f"{trained_through:%Y-%m-%d}",
+            "retrospective": bool(as_of <= trained_through),
             "model": {"release": self.release, "name": model_name},
             **extra,
         }
 
     def predict(self, *, team1: str, team2: str, venue: str, season: int, toss_winner: str,
                 toss_decision: str, match_date: str | None = None, is_playoff: bool = False) -> dict:
-        """Pre-match prediction (after the toss, before the first ball)."""
+        """Pre-match estimate; dates within model training are labelled retrospective.
+
+        The date restricts feature history, not the fitted model's training data.
+        """
         feats, as_of = fb.scenario_features(self.history, team1=team1, team2=team2, venue=venue,
                                             toss_winner=toss_winner, toss_decision=toss_decision,
                                             season=season, match_date=match_date, is_playoff=is_playoff,

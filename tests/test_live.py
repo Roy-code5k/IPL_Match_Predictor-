@@ -75,6 +75,9 @@ def test_state_features_known_values():
     {"innings": 2, "overs_done": 5, "runs": 181, "wickets": 2, "target": 181},  # target reached
     {"innings": 2, "overs_done": 5, "runs": 50, "wickets": 2},          # no target
     {"innings": 3, "overs_done": 1, "runs": 5, "wickets": 0},
+    {"innings": 2, "overs_done": 0, "runs": 1, "wickets": 0, "target": 181},
+    {"innings": 2, "overs_done": 0, "runs": 0, "wickets": 1, "target": 181},
+    {"innings": 2, "overs_done": 0, "runs": 100, "wickets": 5, "target": 181},
 ])
 def test_state_features_rejects_finished_or_invalid_states(kwargs):
     with pytest.raises(ValueError):

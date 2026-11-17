@@ -148,3 +148,26 @@ def test_history_cache_gives_the_same_predictions(release):
         assert cached == pytest.approx(float(p.prematch_model.predict(uncached_row)[0]), abs=1e-12)
         assert p.predict(**scenario(m))["probabilities"][m.team1] == cached  # second call hits the cache
     assert len(p._histories) == 3
+
+
+@pytest.mark.parametrize("live", [False, True])
+@pytest.mark.parametrize("offset,retrospective", [(-1, True), (0, True), (1, False)])
+def test_retrospective_flag_uses_model_training_cutoff(release, live, offset, retrospective):
+    folder, matches, _ = release
+    p = Predictor.load(folder)
+    date = pd.Timestamp(p.metadata["history_cutoff"]) + pd.Timedelta(days=offset)
+    setup = {**scenario(matches.iloc[-1]), "match_date": date, "season": date.year}
+    out = (p.predict_live(**setup, innings=2, overs_done=0, runs=0, wickets=0, first_innings_total=180)
+           if live else p.predict(**setup))
+    assert out["retrospective"] is retrospective
+    assert out["model_trained_through"] == p.metadata["history_cutoff"]
+    assert out["history_before"] == f"{date:%Y-%m-%d}"
+
+
+def test_retrospective_flag_without_explicit_match_date(release):
+    folder, matches, _ = release
+    p = Predictor.load(folder)
+    setup = scenario(matches.iloc[-1])
+    setup.pop("match_date")
+    assert p.predict(**setup)["retrospective"] is True
+    assert p.predict(**{**setup, "season": setup["season"] + 1})["retrospective"] is False

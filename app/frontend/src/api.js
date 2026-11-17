@@ -37,15 +37,7 @@ export const predictLive = (body) => request('/predict-live', { method: 'POST', 
 export const predictBatch = (csv) => request('/predict-batch', { method: 'POST', body: JSON.stringify({ csv }) })
 export const predictionLogUrl = `${BASE}/predictions/log.csv`
 
-// CSV helpers for downloads made in the browser.
-function csvCell(value) {
-  const text = value === null || value === undefined ? '' : String(value)
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
-export function toCsv(columns, rows) {
-  return [columns.join(','), ...rows.map((row) => columns.map((column) => csvCell(row[column])).join(','))].join('\n') + '\n'
-}
+export { toCsv } from './csv.js'
 
 export function downloadText(filename, text, type = 'text/csv') {
   const url = URL.createObjectURL(new Blob([text], { type }))

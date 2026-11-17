@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { downloadText, getHealth, getMetrics, getOptions, predict, predictBatch, predictionLogUrl, predictLive, toCsv } from './api.js'
+import { getErrors, isWhole } from './validation.js'
 import {
   dataset,
   franchiseAliases,
@@ -46,9 +47,8 @@ const emptyForm = {
 
 const percent = (value, digits = 1) => `${(value * 100).toFixed(digits)}%`
 
-// Same columns as the API's batch results, so single and batch downloads line up.
+// Input columns of the batch CSV template (same as the API's batch input columns).
 const INPUT_COLUMNS = ['team1', 'team2', 'venue', 'season', 'toss_winner', 'toss_decision', 'match_date', 'is_playoff', 'innings', 'overs_done', 'runs', 'wickets', 'first_innings_total']
-const RESULT_COLUMNS = ['mode', 'team1_probability', 'team2_probability', 'predicted_winner', 'confidence', 'close_call', 'history_before', 'model_release', 'model_name']
 
 const BATCH_TEMPLATE = toCsv(INPUT_COLUMNS, [
   { team1: 'Mumbai Indians', team2: 'Chennai Super Kings', venue: 'Wankhede Stadium, Mumbai', season: 2025, toss_winner: 'Chennai Super Kings', toss_decision: 'field' },
@@ -60,25 +60,6 @@ function formatInput(value, format) {
   if (format === 'percent') return percent(value)
   if (format === 'yesno') return value ? 'yes' : 'no'
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
-}
-
-function resultRow(request, result) {
-  const inputs = Object.fromEntries(INPUT_COLUMNS.map((key) => [key, request[key] ?? '']))
-  if (request.mode !== 'live') ['innings', 'overs_done', 'runs', 'wickets', 'first_innings_total'].forEach((key) => { inputs[key] = '' })
-  if (request.mode === 'live' && request.innings !== '2') inputs.first_innings_total = ''
-  return {
-    ...inputs,
-    is_playoff: '',
-    mode: result.mode,
-    team1_probability: result.team1_probability,
-    team2_probability: result.team2_probability,
-    predicted_winner: result.predicted_winner,
-    confidence: result.confidence,
-    close_call: result.close_call,
-    history_before: result.history_before,
-    model_release: result.model.release,
-    model_name: result.model.name,
-  }
 }
 
 function Window({ id, title, tone = 'blue', className = '', children }) {
@@ -122,58 +103,6 @@ function SectionIntro({ eyebrow, title, children }) {
       <p>{children}</p>
     </div>
   )
-}
-
-function isWhole(value, min, max) {
-  if (value === '' || !/^\d+$/.test(String(value))) return false
-  const number = Number(value)
-  return number >= min && number <= max
-}
-
-function getErrors(form, options) {
-  const errors = {}
-  if (!form.season) errors.season = 'Choose a season.'
-  if (!form.venue) errors.venue = 'Choose a venue.'
-  if (!form.team1) errors.team1 = 'Choose Team A.'
-  if (!form.team2) errors.team2 = 'Choose Team B.'
-  if (form.team1 && form.team1 === form.team2) errors.team2 = 'Choose a different franchise.'
-  const allowed = options?.teams_by_season?.[form.season]
-  if (allowed) {
-    const future = Number(form.season) > options.last_data_season
-    for (const key of ['team1', 'team2']) {
-      if (form[key] && !errors[key] && !allowed.includes(form[key])) {
-        errors[key] = future
-          ? `${form[key]} was not active in ${options.last_data_season}, the latest season in the data.`
-          : `${form[key]} did not play in ${form.season}.`
-      }
-    }
-  }
-  if (!form.toss_winner) errors.toss_winner = 'Choose the toss winner.'
-  if (form.toss_winner && ![form.team1, form.team2].includes(form.toss_winner)) {
-    errors.toss_winner = 'The toss winner must be playing this match.'
-  }
-  if (!form.toss_decision) errors.toss_decision = 'Choose the toss decision.'
-  if (form.match_date && form.season && !form.match_date.startsWith(`${form.season}-`)) {
-    errors.match_date = `The match date must be in the ${form.season} season, or leave it blank.`
-  }
-  if (form.mode === 'live') {
-    if (!['1', '2'].includes(form.innings)) errors.innings = 'Choose the innings.'
-    const chase = form.innings === '2'
-    const minOvers = chase ? 0 : 1
-    if (!isWhole(form.overs_done, minOvers, 19)) {
-      errors.overs_done = chase ? 'Enter completed overs from 0 (innings break) to 19.' : 'Enter completed overs from 1 to 19.'
-    }
-    if (!isWhole(form.runs, 0, 400)) errors.runs = 'Enter runs as a whole number from 0 to 400.'
-    if (!isWhole(form.wickets, 0, 9)) errors.wickets = 'Enter wickets from 0 to 9 (10 means the innings is over).'
-    if (chase) {
-      if (!isWhole(form.first_innings_total, 0, 400)) {
-        errors.first_innings_total = 'Enter the first-innings total (0 to 400).'
-      } else if (isWhole(form.runs, 0, 400) && Number(form.runs) > Number(form.first_innings_total)) {
-        errors.runs = 'The chase is already won at this score.'
-      }
-    }
-  }
-  return errors
 }
 
 function requestBody(form) {
@@ -303,15 +232,18 @@ function ModelInputs({ result }) {
             {item.note && <span className="terminal-muted"> ({item.note})</span>}
           </p>
         ))}
-        <p className="terminal-muted">What the model looked at, from matches before {result.history_before}. Win rates are pulled toward 50% when there are few matches. These are inputs, not reasons.</p>
+        <p className="terminal-muted">Historical inputs use matches before {result.history_before}; live inputs use the score you entered. The model itself was trained through {result.model_trained_through}. Win rates are pulled toward 50% when there are few matches. These are inputs, not reasons.</p>
       </div>
     </div>
   )
 }
 
-function ResultView({ result, stale, request }) {
+function ResultView({ result, stale }) {
   return (
     <>
+      {result.retrospective && (
+        <div className="result-alert result-alert-close"><span className="alert-icon" aria-hidden="true">!</span><div><strong>Retrospective simulation</strong><p>The model was trained on matches through {result.model_trained_through}, including matches on or after this scenario’s cutoff. This does not show what it could have predicted at the time.</p></div></div>
+      )}
       {result.close_call ? (
         <div className="result-alert result-alert-close"><span className="alert-icon" aria-hidden="true">≈</span><div><strong>Too close to call</strong><p>The two probabilities are within 10 points. Treat this match as roughly 50/50.</p></div></div>
       ) : null}
@@ -324,14 +256,11 @@ function ResultView({ result, stale, request }) {
         <div><span>CONFIDENCE</span><strong>{result.confidence}</strong></div>
       </div>
       <p className="result-note">
-        {result.mode === 'live' ? 'Live model' : 'Pre-match model'}: {result.model.name}, release {result.model.release}. Uses matches before {result.history_before}.
+        {result.mode === 'live' ? 'Live model' : 'Pre-match model'}: {result.model.name}, release {result.model.release}. Historical inputs use matches before {result.history_before}. Model trained through {result.model_trained_through}.
         {result.mode === 'pre-match' && ' Pre-match predictions were no better than a coin flip on the 2023–2024 test seasons, so read them as close to 50/50.'}
         {' '}This is an estimate, not a guarantee.
       </p>
       {stale && <p className="result-stale">Inputs changed since this prediction. Predict again to update it.</p>}
-      <div className="result-actions">
-        <button type="button" className="button button-small" onClick={() => downloadText(`prediction_${result.team1}_v_${result.team2}.csv`.replaceAll(' ', '_'), toCsv([...INPUT_COLUMNS, ...RESULT_COLUMNS], [resultRow(request, result)]))}>Download CSV</button>
-      </div>
     </>
   )
 }
@@ -395,6 +324,7 @@ function BatchPredictor({ service, options }) {
           {data && (
             <>
               <p className="batch-summary"><strong>{data.rows}</strong> matches: <strong>{data.succeeded}</strong> predicted, <strong>{data.failed}</strong> with errors.</p>
+              {data.results.some((row) => row.retrospective) && <p className="result-stale">Rows marked “Retrospective simulation” use models trained on matches on or after the scenario cutoff. They do not show what could have been predicted at the time. Training cutoffs are included in the download.</p>}
               <div className="table-scroll">
                 <table className="data-table">
                   <caption className="sr-only">Batch prediction results</caption>
@@ -404,7 +334,7 @@ function BatchPredictor({ service, options }) {
                       <tr key={index} className={row.error ? 'row-error' : ''}>
                         <td>{index + 1}</td>
                         <td>{row.team1 || '?'} v {row.team2 || '?'}</td>
-                        <td>{row.mode || '—'}</td>
+                        <td>{row.mode || '—'}{row.retrospective && <><br /><strong>Retrospective simulation</strong></>}</td>
                         <td>{row.predicted_winner || '—'}</td>
                         <td>{row.error ? '—' : percent(Math.max(row.team1_probability, row.team2_probability))}</td>
                         <td>{row.error || row.confidence}</td>
@@ -428,7 +358,7 @@ function Predictor({ service, options, onRetry }) {
   const [form, setForm] = useState(emptyForm)
   const [attempted, setAttempted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [outcome, setOutcome] = useState(null) // { result, request } or { error }
+  const [outcome, setOutcome] = useState(null) // { result } or { error }
   const [stale, setStale] = useState(false)
   const errors = attempted ? getErrors(form, options) : {}
   const allowed = options?.teams_by_season?.[form.season]
@@ -460,7 +390,7 @@ function Predictor({ service, options, onRetry }) {
     setLoading(true)
     try {
       const result = live ? await predictLive(body) : await predict(body)
-      setOutcome({ result, request: { ...form } })
+      setOutcome({ result })
       setStale(false)
     } catch (error) {
       setOutcome({ error })
@@ -476,7 +406,7 @@ function Predictor({ service, options, onRetry }) {
     <Window id="predictor" title="predict_match.exe — match configuration" className="predictor-window">
       <div className="predictor-heading">
         <SectionIntro eyebrow="MATCH PREDICTOR / INPUT CONSOLE" title="Set up the match.">
-          Predict after the toss, or update the prediction during the match from the score at the end of an over. Add a match date to use only results before that day.
+          Predict after the toss, or update the prediction during the match from the score at the end of an over. A match date limits historical inputs to earlier matches. Dates within the model’s training period produce a retrospective simulation.
         </SectionIntro>
         <ServiceBadge service={service} />
       </div>
@@ -501,7 +431,7 @@ function Predictor({ service, options, onRetry }) {
                 {form.innings === '2'
                   ? <NumberField id="first_innings_total" label="FIRST-INNINGS TOTAL" value={form.first_innings_total} onChange={change} min={0} max={400} error={errors.first_innings_total} hint={isWhole(form.first_innings_total, 0, 400) ? `Target: ${Number(form.first_innings_total) + 1}` : 'Runs scored by the side batting first.'} />
                   : <div className="field-spacer" aria-hidden="true" />}
-                <NumberField id="overs_done" label="OVERS COMPLETED" value={form.overs_done} onChange={change} min={form.innings === '2' ? 0 : 1} max={19} error={errors.overs_done} hint={form.innings === '2' ? '0 = innings break.' : 'Whole overs only.'} />
+                <NumberField id="overs_done" label="OVERS COMPLETED" value={form.overs_done} onChange={change} min={form.innings === '2' ? 0 : 1} max={19} error={errors.overs_done} hint={form.innings === '2' ? '0 = innings break; runs and wickets must both be 0.' : 'Whole overs only.'} />
                 <NumberField id="runs" label={form.innings === '2' ? 'RUNS (CHASING SIDE)' : 'RUNS'} value={form.runs} onChange={change} min={0} max={400} error={errors.runs} />
                 <NumberField id="wickets" label="WICKETS LOST" value={form.wickets} onChange={change} min={0} max={9} error={errors.wickets} />
               </div>
@@ -517,7 +447,7 @@ function Predictor({ service, options, onRetry }) {
           <div className="result-panel inset-panel" aria-live="polite" aria-busy={loading}>
             <div className="panel-caption">PREDICTION_RESULT.LOG <span>{status}</span></div>
             {outcome?.result ? (
-              <ResultView result={outcome.result} stale={stale} request={outcome.request} />
+              <ResultView result={outcome.result} stale={stale} />
             ) : outcome?.error ? (
               <div className="result-alert" role="alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>{outcome.error.code === 'OFFLINE' ? 'Prediction service offline' : 'Prediction not made'}</strong><p>{outcome.error.message}</p>{outcome.error.requestId && <p className="request-id">Request id: {outcome.error.requestId}</p>}</div></div>
             ) : (
@@ -675,17 +605,9 @@ function useService() {
 }
 
 function App() {
-  const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('ipl-theme') || 'light' } catch { return 'light' }
-  })
   const [service, recheck] = useService()
   const [options, setOptions] = useState(null)
   const [metrics, setMetrics] = useState(null)
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    try { localStorage.setItem('ipl-theme', theme) } catch { /* Storage may be disabled. */ }
-  }, [theme])
 
   useEffect(() => {
     if (service.status !== 'online') return
@@ -700,9 +622,7 @@ function App() {
       <header className="topbar">
         <div className="topbar-inner">
           <a className="brand" href="#overview"><img className="brand-symbol" src="/infinity-symbol.png" alt="" /><span>IPL ANALYTICS<span className="brand-exe">.EXE</span></span></a>
-          <nav aria-label="Main navigation">{navigation.map(([label, id]) => <a key={id} href={`#${id}`}>{label}</a>)}</nav>
-          <button className="button theme-toggle" type="button" onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}><span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span> {theme === 'light' ? 'Night' : 'Day'}</button>
-        </div>
+          <nav aria-label="Main navigation">{navigation.map(([label, id]) => <a key={id} href={`#${id}`}>{label}</a>)}</nav>        </div>
       </header>
 
       <main className="desktop">

@@ -57,6 +57,8 @@ class LiveRequest(MatchSetup):
         else:
             if self.first_innings_total is None:
                 raise ValueError("first_innings_total is required in the second innings")
+            if self.overs_done == 0 and (self.runs != 0 or self.wickets != 0):
+                raise ValueError("0 overs means the innings break: runs and wickets must both be 0")
             if self.runs > self.first_innings_total:
                 raise ValueError("the chase is already won; no prediction is needed")
         return self
@@ -95,7 +97,10 @@ class Prediction(BaseModel):
     predicted_winner: str
     confidence: str
     close_call: bool
-    history_before: str = Field(description="Only matches before this date were used")
+    history_before: str = Field(description="Historical input features use only matches before this date")
+    model_trained_through: str = Field(description="Last match date used to train the fitted model")
+    retrospective: bool = Field(description="True when the feature cutoff is within model training; "
+                                           "this is a retrospective simulation, not an unseen forecast")
     model: ModelInfo
     batting_first: str | None = None
     state: LiveState | None = None
@@ -111,7 +116,7 @@ BATCH_REQUIRED_COLUMNS = ["team1", "team2", "venue", "season", "toss_winner", "t
 
 class BatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    csv: str = Field(min_length=1, max_length=200_000,
+    csv: str = Field(max_length=200_000,
                      description=f"CSV text with a header row; at most {MAX_BATCH_ROWS} matches")
 
 
