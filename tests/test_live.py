@@ -171,14 +171,14 @@ def test_inference_rows_equal_training_rows(world):
                   is_playoff=bool(late.is_playoff))
 
     row1 = mine[(mine["innings"] == 1) & (mine["overs_done"] == 6)].iloc[0]
-    got, bat_first = lf.live_scenario(matches, totals, innings=1, overs_done=6, runs=int(row1.runs),
+    got, bat_first, _ = lf.live_scenario(matches, totals, innings=1, overs_done=6, runs=int(row1.runs),
                                       wickets=int(row1.wickets), **common)
     assert bat_first == row1.bat_first
     np.testing.assert_allclose(got.iloc[0].to_numpy(dtype=float),
                                row1[lf.INNINGS1_FEATURES].to_numpy(dtype=float))
 
     row2 = mine[(mine["innings"] == 2) & (mine["overs_done"] == 0)].iloc[0]
-    got, _ = lf.live_scenario(matches, totals, innings=2, overs_done=0, runs=0, wickets=0,
+    got, _, _ = lf.live_scenario(matches, totals, innings=2, overs_done=0, runs=0, wickets=0,
                               first_innings_total=int(row2.target) - 1, **common)
     np.testing.assert_allclose(got.iloc[0].to_numpy(dtype=float),
                                row2[lf.INNINGS2_FEATURES].to_numpy(dtype=float))

@@ -153,10 +153,10 @@ def build_report(df: pd.DataFrame, results: dict[str, dict], best: str) -> str:
     season_rows = []
     for season in seasons:
         row: list[object] = [season]
-        for r in results.values():
-            part = r["walk_forward"][r["walk_forward"]["season"] == season]
+        parts = [r["walk_forward"][r["walk_forward"]["season"] == season] for r in results.values()]
+        for part in parts:
             row.append(f"{ev.score(part[TARGET], part['prob']).accuracy:.1%}")
-        season_rows.append(row + [len(part)])
+        season_rows.append(row + [len(parts[0])])  # every model is scored on the same matches
 
     chosen = results[best]
     (tn, fp_), (fn, tp) = chosen["val_metrics"].confusion

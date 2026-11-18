@@ -171,3 +171,40 @@ def test_retrospective_flag_without_explicit_match_date(release):
     setup.pop("match_date")
     assert p.predict(**setup)["retrospective"] is True
     assert p.predict(**{**setup, "season": setup["season"] + 1})["retrospective"] is False
+
+
+# --- review fixes (2026-11-18) ---------------------------------------------------
+
+def test_history_cache_is_thread_safe_and_least_recently_used(release, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from src.models import predictor as pr
+    folder, matches, _ = release
+    p = Predictor.load(folder)
+    monkeypatch.setattr(pr, "HISTORY_CACHE_SIZE", 3)
+    dates = sorted(matches["date"].unique())[-8:]
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(lambda d: p.history_for(pd.Timestamp(d)), dates * 6))
+    assert len(p._histories) == 3
+    p._histories.clear()
+    a, b, c, d = (pd.Timestamp(x) for x in dates[:4])
+    for day in (a, b, c, a, d):                # `a` is used again before `d` arrives
+        p.history_for(day)
+    assert list(p._histories) == [c, a, d]     # `b` was least recently used
+
+
+def test_loaded_models_run_single_threaded(release):
+    folder, *_ = release
+    p = Predictor.load(folder)
+    for model in (p.prematch_model, *p.live_models.values()):
+        inner = getattr(model, "model", model)
+        for part in [inner, *(s for _, s in getattr(inner, "steps", []))]:
+            assert getattr(part, "n_jobs", 1) in (1, None)
+
+
+def test_prematch_as_bat_first_flips_to_the_batting_side():
+    pred = pd.DataFrame({"match_id": [1, 2], "a_bats_first": [1, 0], "prob": [0.9, 0.2]})
+    states = pd.DataFrame({"match_id": [1, 2, 2], "innings": [2, 2, 1], "overs_done": [0, 0, 5],
+                           lf.TARGET: [1, 1, 0]})
+    # Batting-first win probabilities 0.9 and 0.8; both sides batting first won -> both correct.
+    assert rl.prematch_as_bat_first(pred, states).accuracy == 1.0

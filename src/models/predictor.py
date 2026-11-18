@@ -14,7 +14,9 @@ be paired with a different history snapshot. Unknown team or venue names raise
 from __future__ import annotations
 
 import json
+import threading
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
@@ -85,6 +87,14 @@ def live_inputs(f: pd.Series, innings: int) -> list[dict]:
             _single("Wickets left", int(f.wickets_left), "number"), *items]
 
 
+def _single_thread(model) -> None:
+    """Set n_jobs=1 on a model, its `.model` wrapper target, and every step of a Pipeline."""
+    inner = getattr(model, "model", model)
+    for part in [inner, *(step for _, step in getattr(inner, "steps", []))]:
+        if hasattr(part, "n_jobs"):
+            part.n_jobs = 1
+
+
 @dataclass
 class Predictor:
     metadata: dict
@@ -92,16 +102,26 @@ class Predictor:
     live_models: dict[int, object]
     history: pd.DataFrame
     totals: pd.DataFrame
-    _histories: dict = field(default_factory=dict, repr=False)
+    _histories: OrderedDict = field(default_factory=OrderedDict, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def history_for(self, as_of: pd.Timestamp) -> fb.History:
-        """History snapshot before `as_of`, cached because building it dominates prediction time."""
-        cached = self._histories.get(as_of)
-        if cached is None:
-            cached = fb.History.from_matches(self.history, before=as_of)
-            if len(self._histories) >= HISTORY_CACHE_SIZE:
-                self._histories.pop(next(iter(self._histories)))
-            self._histories[as_of] = cached
+        """History snapshot before `as_of`, cached because building it dominates prediction time.
+
+        Thread-safe (the API serves predictions from a thread pool); evicts the least recently used.
+        """
+        with self._lock:
+            cached = self._histories.get(as_of)
+            if cached is not None:
+                self._histories.move_to_end(as_of)
+                return cached
+        # Built outside the lock so slow misses do not block cache hits; a duplicate build is harmless.
+        built = fb.History.from_matches(self.history, before=as_of)
+        with self._lock:
+            cached = self._histories.setdefault(as_of, built)
+            self._histories.move_to_end(as_of)
+            while len(self._histories) > HISTORY_CACHE_SIZE:
+                self._histories.popitem(last=False)
         return cached
 
     @classmethod
@@ -123,14 +143,14 @@ class Predictor:
         history = pd.read_csv(release_dir / "history.csv", parse_dates=["date"])
         totals = pd.read_csv(release_dir / "first_innings_totals.csv", parse_dates=["date"])
         prematch_model = joblib.load(release_dir / metadata["prematch"]["file"])
+        live_models = {i: joblib.load(release_dir / metadata["live"][f"innings{i}"]["file"]) for i in (1, 2)}
         # One match at a time: thread start-up costs more than it saves (same probabilities).
-        inner = getattr(prematch_model, "model", prematch_model)
-        if hasattr(inner, "n_jobs"):
-            inner.n_jobs = 1
+        for model in (prematch_model, *live_models.values()):
+            _single_thread(model)
         return cls(
             metadata=metadata,
             prematch_model=prematch_model,
-            live_models={i: joblib.load(release_dir / metadata["live"][f"innings{i}"]["file"]) for i in (1, 2)},
+            live_models=live_models,
             history=history,
             totals=totals,
         )
@@ -178,7 +198,7 @@ class Predictor:
                      first_innings_total: int | None = None, match_date: str | None = None,
                      is_playoff: bool = False) -> dict:
         """Live prediction at the end of an over (or the innings break: innings=2, overs_done=0)."""
-        row, bat_first = lf.live_scenario(self.history, self.totals, team1=team1, team2=team2, venue=venue,
+        row, bat_first, as_of = lf.live_scenario(self.history, self.totals, team1=team1, team2=team2, venue=venue,
                                           toss_winner=toss_winner, toss_decision=toss_decision,
                                           season=season, match_date=match_date, is_playoff=is_playoff,
                                           innings=innings, overs_done=overs_done, runs=runs,
@@ -186,7 +206,6 @@ class Predictor:
                                           history_for=self.history_for)
         prob_bf = float(self.live_models[innings].predict_proba(row)[0, 1])
         prob_team1 = prob_bf if bat_first == mappings.normalize_team(team1) else 1 - prob_bf
-        as_of = fb.resolve_as_of(self.history, season, match_date)
         state = {"innings": innings, "overs_done": overs_done, "runs": runs, "wickets": wickets}
         if innings == 2:
             state["target"] = first_innings_total + 1

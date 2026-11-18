@@ -7,9 +7,19 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from src.data import mappings
+
 FIRST_SEASON = 2008
 LAST_SUPPORTED_SEASON = 2027  # data seasons (2008-2024) plus three future seasons
 MAX_RUNS = 400
+
+
+def _franchise(name: str) -> str:
+    """Canonical franchise name, or the trimmed input if it is not a known team."""
+    try:
+        return mappings.normalize_team(name)
+    except mappings.UnknownNameError:
+        return " ".join(name.split())
 
 
 class MatchSetup(BaseModel):
@@ -28,9 +38,12 @@ class MatchSetup(BaseModel):
 
     @model_validator(mode="after")
     def check_consistency(self) -> "MatchSetup":
-        if self.team1 == self.team2:
+        # Compare franchises, not spellings: "Delhi Daredevils" and "Delhi Capitals" are one team.
+        # Unknown names are left as typed; prediction reports them as UNKNOWN_NAME.
+        team1, team2, toss = (_franchise(n) for n in (self.team1, self.team2, self.toss_winner))
+        if team1 == team2:
             raise ValueError("team1 and team2 must be different franchises")
-        if self.toss_winner not in (self.team1, self.team2):
+        if toss not in (team1, team2):
             raise ValueError("toss_winner must be team1 or team2")
         if self.match_date is not None and self.match_date.year != self.season:
             raise ValueError(f"match_date must fall in the {self.season} season")

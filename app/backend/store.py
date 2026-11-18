@@ -15,12 +15,14 @@ Settings (environment variables):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from pathlib import Path
 from typing import Protocol
 
 ROOT = Path(__file__).resolve().parents[2]
+log = logging.getLogger("ipl.api")
 
 
 class PredictionLog(Protocol):
@@ -41,16 +43,21 @@ class JsonlLog:
                 handle.write(line + "\n")
 
     def read_all(self) -> list[dict]:
-        if not self.path.exists():
-            return []
         with self._lock:
-            lines = self.path.read_text(encoding="utf-8").splitlines()
-        records = []
+            try:
+                lines = self.path.read_text(encoding="utf-8").splitlines()
+            except FileNotFoundError:
+                return []
+        records, skipped = [], 0
         for line in lines:
+            if not line.strip():
+                continue
             try:
                 records.append(json.loads(line))
             except json.JSONDecodeError:
-                continue  # a partly written line is skipped, never fatal
+                skipped += 1  # a partly written line is skipped, never fatal
+        if skipped:
+            log.warning("Skipped %d unreadable line(s) in %s", skipped, self.path)
         return records
 
 

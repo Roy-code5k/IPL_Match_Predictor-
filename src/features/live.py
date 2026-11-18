@@ -186,8 +186,8 @@ def live_scenario(matches: pd.DataFrame, totals_by_date: pd.DataFrame, *, team1:
                   first_innings_total: int | None = None,
                   match_date: str | pd.Timestamp | None = None,
                   is_playoff: bool = False,
-                  history_for=None) -> tuple[pd.DataFrame, str]:
-    """One live feature row (columns for that innings) and the name of the batting-first side.
+                  history_for=None) -> tuple[pd.DataFrame, str, pd.Timestamp]:
+    """One live feature row (columns for that innings), the batting-first side and the history cutoff.
 
     `totals_by_date` has columns `date`, `match_id`, `total` for full-length matches
     (see `totals_table`). Only rows strictly before the cutoff are used.
@@ -205,7 +205,7 @@ def live_scenario(matches: pd.DataFrame, totals_by_date: pd.DataFrame, *, team1:
                        target=target, par=par, elo_prob_bf=elo_bf, venue_chase_rate=chase_rate)
     t1, t2 = mappings.normalize_team(team1), mappings.normalize_team(team2)
     bat_first = fb.bat_first_team(t1, t2, mappings.normalize_team(toss_winner), toss_decision)
-    return pd.DataFrame([f], columns=FEATURES_BY_INNINGS[innings]), bat_first
+    return pd.DataFrame([f], columns=FEATURES_BY_INNINGS[innings]), bat_first, as_of
 
 
 def totals_table(matches: pd.DataFrame, deliveries: pd.DataFrame, full_length: set[int]) -> pd.DataFrame:

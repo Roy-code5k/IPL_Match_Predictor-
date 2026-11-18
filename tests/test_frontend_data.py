@@ -45,3 +45,15 @@ def test_frontend_counts_match_clean_data():
     counts = clean["venue"].value_counts()
     leading = re.findall(r"name: '([^']+)', matches: (\d+)", js_block("leadingVenues"))
     assert [(v, int(n)) for v, n in leading] == list(counts.head(len(leading)).items())
+
+
+def test_form_limits_match_the_api_schema():
+    """validation.js repeats the API's limits; they must not drift apart."""
+    from app.backend import schemas
+    text = (DATA_JS.parent / "validation.js").read_text(encoding="utf-8")
+    live = schemas.LiveRequest.model_fields
+    limit = lambda name, kind: next(m for m in live[name].metadata if hasattr(m, kind)).__getattribute__(kind)
+    assert limit("overs_done", "le") == 19 and f", {limit('overs_done', 'le')})" in text
+    assert f"isWhole(form.runs, 0, {schemas.MAX_RUNS})" in text
+    assert f"isWhole(form.wickets, 0, {limit('wickets', 'le')})" in text
+    assert f"isWhole(form.first_innings_total, 0, {schemas.MAX_RUNS})" in text

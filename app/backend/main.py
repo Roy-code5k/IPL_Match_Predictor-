@@ -46,6 +46,7 @@ log = logging.getLogger("ipl.api")
 RESULT_COLUMNS = ["mode", "team1_probability", "team2_probability", "predicted_winner", "confidence",
                   "close_call", "history_before", "model_trained_through", "retrospective",
                   "model_release", "model_name"]
+LIVE_COLUMNS = ("innings", "overs_done", "runs", "wickets", "first_innings_total")
 LOG_COLUMNS = (["logged_at", "request_id", "endpoint", "status", "error_code", "latency_ms"]
                + schemas.BATCH_INPUT_COLUMNS + RESULT_COLUMNS)
 
@@ -303,7 +304,9 @@ def create_app(release_dir: Path | None = None, prediction_log: PredictionLog | 
             started = time.perf_counter()
             prediction, error = None, ""
             try:
-                model = schemas.LiveRequest if values.get("innings") else schemas.MatchSetup
+                # Any score cell makes it a live row, so a missing innings is reported as such.
+                live = any(values.get(c) for c in LIVE_COLUMNS)
+                model = schemas.LiveRequest if live else schemas.MatchSetup
                 setup = model.model_validate(values)
             except ValidationError as exc:
                 error = f"INVALID_REQUEST: {validation_message(exc)}"

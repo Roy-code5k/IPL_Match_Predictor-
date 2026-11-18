@@ -365,3 +365,56 @@ def test_batch_innings_break_reports_bad_row_and_keeps_valid_row(setup):
     out = r.json()
     assert (out["failed"], out["succeeded"]) == (1, 1)
     assert "innings break" in out["results"][0]["error"]
+
+
+# --- review fixes (2026-11-18) ---------------------------------------------------
+
+def test_setup_compares_franchises_not_spellings():
+    from app.backend.schemas import MatchSetup
+    base = {"team1": "Delhi Capitals", "team2": "Mumbai Indians", "venue": "Wankhede Stadium, Mumbai",
+            "season": 2018, "toss_decision": "bat"}
+    assert MatchSetup(**base, toss_winner="Delhi Daredevils").toss_winner == "Delhi Daredevils"
+    with pytest.raises(ValueError, match="different franchises"):
+        MatchSetup(**{**base, "team2": "Delhi Daredevils"}, toss_winner="Delhi Capitals")
+    with pytest.raises(ValueError, match="toss_winner"):
+        MatchSetup(**base, toss_winner="Chennai Super Kings")
+
+
+def test_unknown_team_is_still_reported_as_unknown_name(setup):
+    client, matches, _ = setup
+    m = matches.iloc[-1]
+    r = client.post("/api/v1/predict", json=body_for(m, team1="Nowhere XI", toss_winner="Nowhere XI"))
+    assert_error(r, 400, "UNKNOWN_NAME")
+
+
+def test_batch_score_without_innings_says_innings_is_missing(setup):
+    client, matches, _ = setup
+    m = matches.iloc[-1]
+    row = f"\n{m.team1},{m.team2},\"{m.venue}\",{m.season},{m.team1},bat,,,5,40,1"
+    out = client.post("/api/v1/predict-batch", json={"csv": batch_csv(matches, row)}).json()
+    error = out["results"][-1]["error"]
+    assert error.startswith("INVALID_REQUEST") and "innings" in error and "extra" not in error.lower()
+
+
+def test_null_log_and_open_log_settings(tmp_path, monkeypatch):
+    from app.backend.store import NullLog, open_log
+    monkeypatch.setenv("IPL_LOG", "OFF")
+    assert isinstance(open_log(), NullLog)
+    NullLog().write({"a": 1})
+    assert NullLog().read_all() == []
+    monkeypatch.delenv("IPL_LOG")
+    monkeypatch.setenv("IPL_LOG_DIR", str(tmp_path))
+    log = open_log()
+    assert isinstance(log, JsonlLog) and log.path == tmp_path / "predictions.jsonl"
+
+
+def test_jsonl_log_skips_bad_lines_with_a_warning(tmp_path, caplog):
+    log = JsonlLog(tmp_path)
+    assert log.read_all() == []  # no file yet
+    log.write({"n": 1})
+    with log.path.open("a", encoding="utf-8") as handle:
+        handle.write('{"n": 2, "trunc\n\n')
+    log.write({"n": 3})
+    with caplog.at_level("WARNING", logger="ipl.api"):
+        assert [r["n"] for r in log.read_all()] == [1, 3]
+    assert "Skipped 1 unreadable line" in caplog.text

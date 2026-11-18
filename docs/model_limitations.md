@@ -60,7 +60,7 @@ This is the main reason pre-match accuracy is low. The features describe the fra
 
 ## 8. Engineering limits
 
-- **Local only.** The app runs on a single machine, with no authentication.
+- **Local only.** The app runs on a single machine, with no authentication. Anyone who can reach the API can download every logged prediction from `GET /api/v1/predictions/log.csv`, so do not expose the server beyond `localhost` without adding access control.
 - **The log is a plain file.** Predictions go to `logs/predictions.jsonl`, which keeps growing. It is written under a lock within one server process; several server processes writing to the same file are not supported. A database backend can be added behind the same interface.
 - **Batch speed.** A batch of 200 rows takes 3–9 seconds, depending on machine load. A single prediction takes 33–80 ms (live: 4–10 ms). The first prediction for a new date inside the data seasons builds a history snapshot and can take about 0.6 s.
 
