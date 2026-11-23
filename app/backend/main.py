@@ -146,6 +146,13 @@ def create_app(release_dir: Path | None = None, prediction_log: PredictionLog | 
         )
 
     @app.middleware("http")
+    async def normalize_path(request: Request, call_next):
+        path = request.scope.get("path", "")
+        if "//" in path:
+            request.scope["path"] = re.sub(r"/+", "/", path)
+        return await call_next(request)
+
+    @app.middleware("http")
     async def request_id(request: Request, call_next):
         request.state.request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         response = await call_next(request)

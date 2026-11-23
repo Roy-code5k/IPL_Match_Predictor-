@@ -1,6 +1,7 @@
 // Small client for the FastAPI service (app/backend/main.py).
 // In development Vite forwards /api to http://127.0.0.1:8000 (see vite.config.js).
-const BASE = `${import.meta.env?.VITE_API_BASE || ''}/api/v1` // `?.` lets node tests import this file
+const apiBase = (import.meta.env?.VITE_API_BASE || '').trim().replace(/\/+$/, '')
+const BASE = `${apiBase}/api/v1` // `?.` lets node tests import this file
 const OFFLINE_MESSAGE = 'The prediction service is not reachable. Start it from the project root with: uvicorn app.backend.main:app'
 
 export class ApiError extends Error {
