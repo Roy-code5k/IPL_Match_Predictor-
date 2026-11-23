@@ -1,14 +1,19 @@
-# Pinned versions verified with Python 3.13.14 on 2026-11-13.
-# API packages added in Phase 6 (2026-11-16); httpx is needed by the API tests.
-pandas==3.1.1
-numpy==2.5.4
-scikit-learn==1.9.1
-xgboost==3.4.1
-joblib==1.6.0  # saves and loads the model release; checked at load time
-matplotlib==3.11.2
-seaborn==0.13.2
-jupyter==1.1.1
-pytest==9.2.0
-fastapi==0.163.1
-uvicorn==0.54.0
-httpx==0.28.1
+# Core machine learning & data processing
+pandas>=2.2.0
+numpy>=2.0.0
+scikit-learn>=1.5.0
+xgboost>=2.0.0
+joblib>=1.4.0
+
+# API service
+fastapi>=0.115.0
+uvicorn>=0.30.0
+httpx>=0.27.0
+pydantic>=2.7.0
+
+# Visualization & offline reporting
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Testing
+pytest>=8.0.0

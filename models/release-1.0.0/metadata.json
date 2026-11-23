@@ -366,20 +366,20 @@
         "selected": false,
         "metrics": {
           "n": 144,
-          "accuracy": 0.472222,
-          "accuracy_ci": 0.081541,
-          "f1": 0.321429,
-          "roc_auc": 0.504928,
-          "log_loss": 0.725496,
-          "brier": 0.265196,
+          "accuracy": 0.493056,
+          "accuracy_ci": 0.081659,
+          "f1": 0.353982,
+          "roc_auc": 0.524058,
+          "log_loss": 0.718025,
+          "brier": 0.261666,
           "confusion": [
             [
-              50,
-              19
+              51,
+              18
             ],
             [
-              57,
-              18
+              55,
+              20
             ]
           ]
         }
@@ -460,20 +460,20 @@
         "selected": false,
         "metrics": {
           "n": 2674,
-          "accuracy": 0.604712,
-          "accuracy_ci": 0.018531,
-          "f1": 0.605155,
-          "roc_auc": 0.68503,
-          "log_loss": 0.633107,
-          "brier": 0.223457,
+          "accuracy": 0.603964,
+          "accuracy_ci": 0.018537,
+          "f1": 0.595956,
+          "roc_auc": 0.681928,
+          "log_loss": 0.638404,
+          "brier": 0.225933,
           "confusion": [
             [
-              807,
-              480
+              834,
+              453
             ],
             [
-              577,
-              810
+              606,
+              781
             ]
           ]
         }
@@ -554,20 +554,20 @@
         "selected": false,
         "metrics": {
           "n": 2673,
-          "accuracy": 0.775907,
-          "accuracy_ci": 0.015808,
-          "f1": 0.80596,
-          "roc_auc": 0.856295,
-          "log_loss": 0.486524,
-          "brier": 0.156559,
+          "accuracy": 0.775159,
+          "accuracy_ci": 0.015827,
+          "f1": 0.805816,
+          "roc_auc": 0.859331,
+          "log_loss": 0.481612,
+          "brier": 0.156067,
           "confusion": [
             [
-              830,
-              410
+              825,
+              415
             ],
             [
-              189,
-              1244
+              186,
+              1247
             ]
           ]
         }
@@ -599,16 +599,16 @@
     "data/raw/deliveries.csv": "142236EA52950795DAB266D4AA392C7645BD1A0DB4704F0B8058AFD96E24E2C2"
   },
   "packages": {
-    "pandas": "3.1.1",
-    "numpy": "2.5.4",
-    "scikit-learn": "1.9.1",
+    "pandas": "3.0.0",
+    "numpy": "2.4.1",
+    "scikit-learn": "1.9.0",
     "xgboost": "3.4.1",
     "joblib": "1.6.0"
   },
   "files": {
-    "prematch.joblib": "D4A0F1829D66BE081D242526627CC123843F2BE29090260AA66422898EF21D67",
-    "live_innings1.joblib": "A5DF601AD8FCBC336D721AAE6388A3CAADC95EA4BD5BFA6A78F03F3AB63D9A06",
-    "live_innings2.joblib": "84482802B9D6D20138F3BF783713A2082A7D292F0AED0C714C400F624EBF104C",
+    "prematch.joblib": "E48719B4DF47919BF5306988AD57C5998306AEBC6DB170BD000E55584AB96882",
+    "live_innings1.joblib": "F302C23C862276192D39CB5177479384C1E06B067A1F381D3BB3422AEEC629FB",
+    "live_innings2.joblib": "323EB8DAD3200051649A9AB962DF9B9529259C91122E9F58968085CD4F1C9526",
     "history.csv": "8853440EDCDAD5422BB7BEE1B2610F31AB82052972A77FB090CE14EFE5BA3664",
     "first_innings_totals.csv": "A95F5AB37FAA57924641856A5C7BF6EEB18CB483D6F10EB1DF56C5294F1FBE8A"
   }

@@ -32,6 +32,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import ValidationError
 
@@ -124,6 +125,25 @@ def create_app(release_dir: Path | None = None, prediction_log: PredictionLog | 
 
     app = FastAPI(title="IPL Match Winner Prediction API", version="1.1.0", lifespan=lifespan,
                   docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+    cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+    if cors_origins == ["*"]:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=["X-Request-ID"],
+        )
+    else:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=["X-Request-ID"],
+        )
 
     @app.middleware("http")
     async def request_id(request: Request, call_next):

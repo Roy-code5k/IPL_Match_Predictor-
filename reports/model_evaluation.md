@@ -29,7 +29,7 @@ Live rows count only matches still in progress at that point; the pre-match row 
 | Elo baseline | 144 | 47.9% ± 8.2% | 0.483 | 0.488 | 0.7050 | 0.2558 |
 | Logistic regression | 144 | 51.4% ± 8.2% | 0.453 | 0.541 | 0.7143 | 0.2602 |
 | Random Forest (selected) | 144 | 48.6% ± 8.2% | 0.339 | 0.525 | 0.6987 | 0.2527 |
-| XGBoost | 144 | 47.2% ± 8.2% | 0.321 | 0.505 | 0.7255 | 0.2652 |
+| XGBoost | 144 | 49.3% ± 8.2% | 0.354 | 0.524 | 0.7180 | 0.2617 |
 
 By season:
 
@@ -80,7 +80,7 @@ All in-progress over-end states in 2023–2024 (n counts states):
 | Pre-match Elo only | 2674 | 48.2% ± 1.9% | 0.483 | 0.490 | 0.7052 | 0.2559 |
 | Logistic regression (selected) | 2674 | 62.1% ± 1.8% | 0.588 | 0.690 | 0.6377 | 0.2236 |
 | Random Forest | 2674 | 63.8% ± 1.8% | 0.656 | 0.696 | 0.6272 | 0.2193 |
-| XGBoost | 2674 | 60.5% ± 1.9% | 0.605 | 0.685 | 0.6331 | 0.2235 |
+| XGBoost | 2674 | 60.4% ± 1.9% | 0.596 | 0.682 | 0.6384 | 0.2259 |
 
 Selected model by season and checkpoint (accuracy, matches in progress):
 
@@ -108,7 +108,7 @@ All in-progress over-end states in 2023–2024 (n counts states):
 | Pre-match Elo only | 2673 | 48.4% ± 1.9% | 0.494 | 0.494 | 0.7045 | 0.2556 |
 | Logistic regression (selected) | 2673 | 77.6% ± 1.6% | 0.798 | 0.864 | 0.4581 | 0.1510 |
 | Random Forest | 2673 | 77.3% ± 1.6% | 0.801 | 0.843 | 0.4988 | 0.1624 |
-| XGBoost | 2673 | 77.6% ± 1.6% | 0.806 | 0.856 | 0.4865 | 0.1566 |
+| XGBoost | 2673 | 77.5% ± 1.6% | 0.806 | 0.859 | 0.4816 | 0.1561 |
 
 Selected model by season and checkpoint (accuracy, matches in progress):
 

@@ -36,5 +36,5 @@
     "first_date": "2008-04-18",
     "last_date": "2024-05-26"
   },
-  "pandas_version": "3.1.1"
+  "pandas_version": "3.0.0"
 }

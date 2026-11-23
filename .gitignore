@@ -23,9 +23,9 @@ Thumbs.db
 # the *manifest.json files (expected hashes) are committed.
 data/processed/*.csv
 
-# Model releases are rebuilt by `python -m src.models.release`; only metadata.json (expected hashes) is committed.
-models/**/*.joblib
-models/**/*.csv
+# Model release 1.0.0 is tracked for deployment (under 2 MB total)
+!models/release-1.0.0/*.joblib
+!models/release-1.0.0/*.csv
 
 # Prediction log written by the API (app/backend/store.py)
 logs/
