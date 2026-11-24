@@ -6,7 +6,6 @@ Run from the project root, after `python -m src.models.release`:
 Routes (all under /api/v1):
     GET  /health              service and model-load status
     GET  /options             seasons, teams per season and venues the API accepts
-    GET  /model-metrics       the loaded release's test metrics, model comparison and confidence bands
     POST /predict             pre-match prediction (after the toss)
     POST /predict-live        in-match prediction from the score at the end of an over
     POST /predict-batch       up to 200 matches from CSV text; returns a results CSV
@@ -295,23 +294,6 @@ def create_app(release_dir: Path | None = None, prediction_log: PredictionLog | 
                 "venues": sorted(mappings.VENUES),
                 "batch": {"max_rows": schemas.MAX_BATCH_ROWS, "columns": schemas.BATCH_INPUT_COLUMNS,
                           "required": schemas.BATCH_REQUIRED_COLUMNS}}
-
-    @app.get("/api/v1/model-metrics")
-    async def model_metrics(request: Request):
-        meta = predictor(request).metadata
-        return {
-            "release": meta["release"],
-            "history_cutoff": meta["history_cutoff"],
-            "training_seasons": meta["training_seasons"],
-            "evaluation": meta["evaluation"],
-            "prematch": {"model": meta["prematch"]["model"], "test_metrics": meta["prematch"]["test_metrics"]},
-            "live": {"innings1_model": meta["live"]["innings1"]["model"],
-                     "innings2_model": meta["live"]["innings2"]["model"],
-                     "test_accuracy_by_moment": meta["live"]["test_accuracy_by_moment"]},
-            "comparison": meta.get("comparison", {}),
-            "confidence_bands": meta["confidence_bands"],
-            "close_call_label": meta["close_call_label"],
-        }
 
     @app.post("/api/v1/predict", response_model=schemas.Prediction)
     def predict(body: schemas.MatchSetup, request: Request):

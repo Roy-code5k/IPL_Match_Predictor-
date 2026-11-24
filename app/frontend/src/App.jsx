@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { downloadText, getHealth, getMetrics, getOptions, predict, predictBatch, predictionLogUrl, predictLive, toCsv } from './api.js'
+import { downloadText, getHealth, getOptions, predict, predictBatch, predictionLogUrl, predictLive, toCsv } from './api.js'
 import { getErrors, isWhole } from './validation.js'
 import {
   dataset,
@@ -17,7 +17,6 @@ const navigation = [
   ['Match Predictor', 'predictor'],
   ['Batch', 'batch'],
   ['Findings', 'findings'],
-  ['Model Performance', 'performance'],
   ['About', 'about'],
 ]
 
@@ -513,81 +512,6 @@ function Findings() {
   )
 }
 
-function Performance({ service, metrics }) {
-  if (!metrics) {
-    return (
-      <Window id="performance" title="model_performance.log — evaluation status">
-        <div className="performance-heading"><SectionIntro eyebrow="MODEL STATUS / NOT CONNECTED" title="Metrics load from the model release.">The figures here come from the loaded model release, so they always match the model making predictions. {service.status === 'checking' ? 'Connecting…' : 'Start the API to load them.'}</SectionIntro><ServiceBadge service={service} /></div>
-      </Window>
-    )
-  }
-  const pre = metrics.prematch.test_metrics
-  const moments = Object.entries(metrics.live.test_accuracy_by_moment)
-  const chase10 = metrics.live.test_accuracy_by_moment['Chase, after 10 overs']
-  const [[tn, fp], [fn, tp]] = pre.confusion
-  const [testFirst, testLast] = [metrics.evaluation.test_seasons[0], metrics.evaluation.test_seasons.at(-1)]
-  const cards = [
-    ['Pre-match accuracy', percent(pre.accuracy), `±${percent(pre.accuracy_ci)} · ${pre.n} test matches`],
-    ['Pre-match ROC-AUC', pre.roc_auc.toFixed(3), '0.500 = coin flip'],
-    ['Live, chase after 10 overs', chase10 ? percent(chase10.accuracy) : '—', chase10 ? `±${percent(chase10.accuracy_ci)} · ${chase10.n} matches` : ''],
-  ]
-  return (
-    <Window id="performance" title="model_performance.log — evaluation results">
-      <div className="performance-heading">
-        <SectionIntro eyebrow={`MODEL STATUS / RELEASE ${metrics.release}`} title={`Tested once on ${testFirst}–${testLast}.`}>
-          The models were chosen on earlier seasons, trained on {metrics.evaluation.trained_on_seasons.join('–')}, and scored once on {testFirst}–{testLast}. Before the first ball the outcome is close to a coin flip; once the match is under way the score is far more informative.
-        </SectionIntro>
-        <Badge variant="green">TESTED</Badge>
-      </div>
-      <div className="performance-grid">
-        <div className="metric-grid">{cards.map(([label, value, note]) => <div className="metric-card metric-live" key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>)}</div>
-        <div className="confusion-panel inset-panel">
-          <div className="panel-caption">CONFUSION_MATRIX.CSV <span>PRE-MATCH · {pre.n}</span></div>
-          <div className="matrix matrix-filled">
-            <span><b>{tp}</b>Actual A / Pred A</span><span><b>{fn}</b>Actual A / Pred B</span>
-            <span><b>{fp}</b>Actual B / Pred A</span><span><b>{tn}</b>Actual B / Pred B</span>
-          </div>
-          <p>Team A = the first team entered. The pre-match model ({metrics.prematch.model}) picked Team B in {tn + fn} of {pre.n} test matches: it had learned that chasing sides win more often, which stopped being true in {testFirst}–{testLast}.</p>
-        </div>
-        <div className="importance-panel inset-panel moments-panel">
-          <div className="panel-caption">LIVE_ACCURACY_BY_MOMENT.LOG <span>{metrics.live.innings2_model}</span></div>
-          <div className="venue-list">{moments.map(([label, m]) => <HistoricalLine key={label} label={`${label} (${m.n})`} value={m.accuracy} max={1} color="green" display={percent(m.accuracy)} />)}</div>
-          <p className="moments-note">Accuracy on {testFirst}–{testLast}, counting matches still in progress at each point. History up to {metrics.history_cutoff}.</p>
-        </div>
-      </div>
-      {metrics.comparison?.prematch && (
-        <>
-          <div className="comparison-grid">
-            {[['prematch', 'PRE-MATCH · TEST MATCHES'], ['live_innings2', 'LIVE CHASE · OVER-END STATES']].map(([key, title]) => (
-              <div className="inset-panel comparison-panel" key={key}>
-                <div className="panel-caption">MODEL_COMPARISON.CSV <span>{title}</span></div>
-                <div className="table-scroll">
-                  <table className="data-table">
-                    <caption className="sr-only">Model comparison, {title.toLowerCase()}</caption>
-                    <thead><tr><th scope="col">Model</th><th scope="col">Accuracy</th><th scope="col">F1</th><th scope="col">ROC-AUC</th><th scope="col">Log loss</th></tr></thead>
-                    <tbody>
-                      {metrics.comparison[key].map((c) => (
-                        <tr key={c.model} className={c.selected ? 'row-selected' : ''}>
-                          <th scope="row">{c.model}{c.selected ? ' ✓ selected' : ''}</th>
-                          <td>{percent(c.metrics.accuracy)}</td>
-                          <td>{c.metrics.f1.toFixed(3)}</td>
-                          <td>{c.metrics.roc_auc.toFixed(3)}</td>
-                          <td>{c.metrics.log_loss.toFixed(3)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="moments-note">All candidates trained on {metrics.evaluation.trained_on_seasons.join('–')} and scored on {testFirst}–{testLast}. The selected models were chosen on 2015–2022 data before this test, so a candidate that happens to score higher here was not picked after the fact. Lower log loss is better; 0.693 is a coin flip.</p>
-        </>
-      )}
-    </Window>
-  )
-}
-
 function useService() {
   const [service, setService] = useState({ status: 'checking' })
   const check = useCallback(async () => {
@@ -607,12 +531,10 @@ function useService() {
 function App() {
   const [service, recheck] = useService()
   const [options, setOptions] = useState(null)
-  const [metrics, setMetrics] = useState(null)
 
   useEffect(() => {
     if (service.status !== 'online') return
     getOptions().then(setOptions).catch(() => setOptions(null))
-    getMetrics().then(setMetrics).catch(() => setMetrics(null))
   }, [service.status])
 
   const online = service.status === 'online'
@@ -658,7 +580,6 @@ function App() {
         <Predictor service={service} options={options} onRetry={recheck} />
         <BatchPredictor service={service} options={options} />
         <Findings />
-        <Performance service={service} metrics={metrics} />
 
         <Window id="about" title="about_this_project.txt — project notes" tone="slate">
           <div className="about-grid"><div><SectionIntro eyebrow="ABOUT / COLLEGE PROJECT" title="Built to make predictions explainable.">IPL Cricket Match Winner Prediction is a student project by Hrituraj Roy and Amul Rai. It pairs verified historical summaries with tested models served by a FastAPI backend.</SectionIntro><p className="about-disclaimer"><strong>Educational-use notice:</strong> Historical patterns and model estimates cannot guarantee a match outcome. This project is not intended for betting.</p></div><div className="about-checklist"><div><span>✓</span> Historical franchise names preserved</div><div><span>✓</span> Input checks before inference</div><div><span>✓</span> Models tested on unseen seasons</div><div><span>{online ? '✓' : '○'}</span> FastAPI service {online ? 'connected' : 'not connected'}</div></div></div>

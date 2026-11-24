@@ -117,14 +117,12 @@ def test_invalid_live_states(setup, state, status, code):
     assert_error(client.post("/api/v1/predict-live", json=body_for(matches.iloc[-1], **state)), status, code)
 
 
-def test_options_and_metrics(setup):
+def test_options(setup):
     client, matches, _ = setup
     options = client.get("/api/v1/options").json()
     last = str(int(matches["season"].max()))
     assert options["teams_by_season"]["2027"] == options["teams_by_season"][last]
     assert len(options["venues"]) == 36
-    metrics = client.get("/api/v1/model-metrics").json()
-    assert metrics["release"] == "test" and metrics["close_call_label"] == "Too close to call"
 
 
 def test_missing_release_degrades_cleanly(tmp_path):

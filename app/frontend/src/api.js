@@ -32,7 +32,6 @@ async function request(path, options = {}) {
 
 export const getHealth = () => request('/health')
 export const getOptions = () => request('/options')
-export const getMetrics = () => request('/model-metrics')
 export const predict = (body) => request('/predict', { method: 'POST', body: JSON.stringify(body) })
 export const predictLive = (body) => request('/predict-live', { method: 'POST', body: JSON.stringify(body) })
 export const predictBatch = (csv) => request('/predict-batch', { method: 'POST', body: JSON.stringify({ csv }) })

@@ -41,8 +41,6 @@ Batch CSVs require unique, non-empty headers and the same number of cells in eve
 - `src/main.jsx` mounts the React app. `index.html` is Vite's page entry.
 - `public/infinity-symbol.png` is the transparent symbol supplied for the project branding.
 
-The model-performance section reads `GET /api/v1/model-metrics`, so its figures always come from the release that is making predictions.
-
 ## Dataset notes
 
 The current raw file has 1,095 match rows dated 2008–2024, 17 calendar seasons, and 58 distinct raw venue labels. Five no-result matches are excluded from win-rate calculations. Four spelling/name changes are grouped under one franchise identity:
