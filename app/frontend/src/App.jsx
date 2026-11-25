@@ -541,6 +541,15 @@ function App() {
 
   return (
     <>
+      <div className="bg-logo" aria-hidden="true"><img src="/ipl-logo-bg.png" alt="" /></div>
+      <div className="bg-blobs" aria-hidden="true">
+        <span className="blob blob-left blob-1" />
+        <span className="blob blob-left blob-2" />
+        <span className="blob blob-left blob-3" />
+        <span className="blob blob-right blob-4" />
+        <span className="blob blob-right blob-5" />
+        <span className="blob blob-right blob-6" />
+      </div>
       <header className="topbar">
         <div className="topbar-inner">
           <a className="brand" href="#overview"><img className="brand-symbol" src="/infinity-symbol.png" alt="" /><span>IPL ANALYTICS<span className="brand-exe">.EXE</span></span></a>
