@@ -1,0 +1,3 @@
+# Model release files are verified byte-for-byte against SHA-256 hashes in
+# metadata.json, so Git must never rewrite their line endings on checkout.
+models/** -text
