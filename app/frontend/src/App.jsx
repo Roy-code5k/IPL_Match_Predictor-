@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { downloadText, getHealth, getOptions, predict, predictBatch, predictionLogUrl, predictLive, toCsv } from './api.js'
 import { getErrors, isWhole } from './validation.js'
 import {
@@ -12,11 +12,9 @@ import {
 } from './data.js'
 
 const navigation = [
-  ['Overview', 'overview'],
-  ['How It Works', 'how-it-works'],
   ['Match Predictor', 'predictor'],
-  ['Batch', 'batch'],
-  ['Findings', 'findings'],
+  ['IPL Stats', 'findings'],
+  ['How It Works', 'how-it-works'],
   ['About', 'about'],
 ]
 
@@ -61,12 +59,12 @@ function formatInput(value, format) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
-function Window({ id, title, tone = 'blue', className = '', children }) {
+function Window({ id, title, icon, tone = 'blue', className = '', children }) {
   return (
     <section id={id} className={`window ${className}`} aria-labelledby={`${id}-title`}>
       <div className={`window-titlebar titlebar-${tone}`}>
         <span id={`${id}-title`} className="window-title">{title}</span>
-        <span className="window-controls" aria-hidden="true"><i>_</i><i>□</i><i>×</i></span>
+        <span className={`titlebar-icon titlebar-icon--${icon}`} aria-hidden="true" />
       </div>
       <div className="window-body">{children}</div>
     </section>
@@ -192,6 +190,31 @@ function ModeSwitch({ value, onChange }) {
   )
 }
 
+function MatchSetupAnimation() {
+  const scene = useRef(null)
+  const [started, setStarted] = useState(false)
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.intersectionRatio < 0.5) return
+      setStarted(true)
+      observer.disconnect()
+    }, { threshold: 0.5 })
+
+    observer.observe(scene.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <span ref={scene} className={started ? 'empty-cricket is-bowling' : 'empty-cricket'} aria-hidden="true">
+      <span className="empty-cricket-wicket" />
+      <span className="empty-cricket-ball" />
+    </span>
+  )
+}
+
 function ProbabilityBar({ result }) {
   const p1 = result.team1_probability
   return (
@@ -208,19 +231,30 @@ function ProbabilityBar({ result }) {
   )
 }
 
-function stateSummary(result) {
-  const s = result.state
-  if (!s) return null
-  const score = `${s.runs}/${s.wickets}`
-  if (s.innings === 1) return `${result.batting_first} ${score} after ${s.overs_done} overs (1st innings)`
-  if (s.overs_done === 0) return `Innings break: ${result.batting_first === result.team1 ? result.team2 : result.team1} need ${s.target} to win`
-  return `Chase: ${score} after ${s.overs_done} overs, target ${s.target} (${s.target - s.runs} needed off ${120 - 6 * s.overs_done} balls)`
+function LiveScore({ result }) {
+  const { innings, runs, wickets, overs_done: overs, target } = result.state
+  const chasing = innings === 2
+  const chasingTeam = result.batting_first === result.team1 ? result.team2 : result.team1
+  const battingTeam = chasing ? chasingTeam : result.batting_first
+  const inningsLabel = chasing ? 'Chase' : '1st innings'
+
+  return (
+    <div className="live-score">
+      <p>{battingTeam} · {overs === 0 ? 'Innings break' : inningsLabel}</p>
+      <p className="live-score-line">
+        <span className="sr-only">Runs {runs}, wickets {wickets}</span>
+        <strong className="scoreboard-number" aria-hidden="true">{runs}/{wickets}</strong>
+        <span><span className="scoreboard-number">{overs}.0</span> overs</span>
+      </p>
+      {chasing && <p>Need <strong className="scoreboard-number">{target - runs}</strong> off <strong className="scoreboard-number">{120 - 6 * overs}</strong> balls · Target <strong className="scoreboard-number">{target}</strong></p>}
+    </div>
+  )
 }
 
 function ModelInputs({ result }) {
   return (
     <div className="terminal" aria-label="Model inputs">
-      <div className="terminal-header"><span>model_inputs.txt</span><span>● {result.mode === 'live' ? 'LIVE STATE' : 'PRE-MATCH'}</span></div>
+      <div className="terminal-header"><span>Model inputs</span><span>● {result.mode === 'live' ? 'LIVE SCORE' : 'PRE-MATCH'}</span></div>
       <div className="terminal-content">
         {result.inputs.map((item) => (
           <p key={item.label}>
@@ -247,7 +281,7 @@ function ResultView({ result, stale }) {
         <div className="result-alert result-alert-close"><span className="alert-icon" aria-hidden="true">≈</span><div><strong>Too close to call</strong><p>The two probabilities are within 10 points. Treat this match as roughly 50/50.</p></div></div>
       ) : null}
       <div className="result-matchup"><strong>{result.team1}</strong><span>VS</span><strong>{result.team2}</strong></div>
-      {stateSummary(result) && <p className="result-state">{stateSummary(result)}</p>}
+      {result.state && <LiveScore result={result} />}
       <ProbabilityBar result={result} />
       <div className="result-readouts">
         <div><span>PROJECTED WINNER</span><strong>{result.predicted_winner}</strong></div>
@@ -291,7 +325,7 @@ function BatchPredictor({ service, options }) {
   const resultName = outcome?.name ? outcome.name.replace(/\.csv$/i, '') + '_predictions.csv' : 'predictions.csv'
 
   return (
-    <Window id="batch" title="batch_predict.exe — many matches from a CSV" tone="slate">
+    <Window id="batch" title="Batch CSV" icon="scorebook" tone="slate">
       <div className="predictor-heading">
         <SectionIntro eyebrow="BATCH / CSV IN, CSV OUT" title="Predict a list of matches.">
           Upload up to {maxRows} matches as a CSV with the same fields as the form. Rows with innings, overs, runs and wickets get a live prediction. Bad rows are reported, not dropped.
@@ -300,7 +334,7 @@ function BatchPredictor({ service, options }) {
       </div>
       <div className="batch-layout">
         <form className="console-form inset-panel" onSubmit={run}>
-          <div className="panel-caption">BATCH_INPUT.CSV <span>MAX {maxRows} ROWS</span></div>
+          <div className="panel-caption">MATCH LIST <span>MAX {maxRows} ROWS</span></div>
           <ol className="batch-steps">
             <li><button type="button" className="link-button" onClick={() => downloadText('batch_template.csv', BATCH_TEMPLATE)}>Download the template</button> (one pre-match and one live example).</li>
             <li>Fill in one match per row. Leave the live columns empty for a pre-match prediction.</li>
@@ -316,7 +350,7 @@ function BatchPredictor({ service, options }) {
           </div>
         </form>
         <div className="result-panel inset-panel batch-results" aria-live="polite" aria-busy={running}>
-          <div className="panel-caption">BATCH_RESULTS.LOG <span>{running ? 'RUNNING' : data ? 'COMPLETE' : outcome?.error ? 'ERROR' : 'IDLE'}</span></div>
+          <div className="panel-caption">BATCH RESULTS <span>{running ? 'RUNNING' : data ? 'COMPLETE' : outcome?.error ? 'ERROR' : 'IDLE'}</span></div>
           {outcome?.error && (
             <div className="result-alert" role="alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>Batch not run</strong><p>{outcome.error.message}</p>{outcome.error.requestId && <p className="request-id">Request id: {outcome.error.requestId}</p>}</div></div>
           )}
@@ -402,16 +436,16 @@ function Predictor({ service, options, onRetry }) {
   const status = loading ? 'RUNNING' : outcome?.error ? 'ERROR' : outcome?.result ? 'COMPLETE' : 'IDLE'
 
   return (
-    <Window id="predictor" title="predict_match.exe — match configuration" className="predictor-window">
+    <Window id="predictor" title="Match Predictor" icon="ball" className="predictor-window">
       <div className="predictor-heading">
-        <SectionIntro eyebrow="MATCH PREDICTOR / INPUT CONSOLE" title="Set up the match.">
+        <SectionIntro eyebrow="AFTER THE TOSS OR DURING PLAY" title="Set up the match.">
           Predict after the toss, or update the prediction during the match from the score at the end of an over. A match date limits historical inputs to earlier matches. Dates within the model’s training period produce a retrospective simulation.
         </SectionIntro>
         <ServiceBadge service={service} />
       </div>
       <div className="predictor-layout">
         <form className="console-form inset-panel" onSubmit={submit} noValidate>
-          <div className="panel-caption">MATCH_SETUP.INI <span>{live ? 'LIVE SCORE' : 'PRE-MATCH'}</span></div>
+          <div className="panel-caption">MATCH SETUP <span>{live ? 'LIVE SCORE' : 'PRE-MATCH'}</span></div>
           <ModeSwitch value={form.mode} onChange={change} />
           <div className="form-grid">
             <SelectField id="season" label="SEASON" value={form.season} onChange={change} placeholder="Select year" options={seasons.map((season) => ({ value: String(season), label: season > dataset.lastSeason ? `${season} (after the data)` : String(season) }))} error={errors.season} />
@@ -424,7 +458,7 @@ function Predictor({ service, options, onRetry }) {
           </div>
           {live && (
             <div className="live-fields">
-              <div className="panel-caption">LIVE_SCORE.DAT <span>END OF AN OVER</span></div>
+              <div className="panel-caption">LIVE SCORE <span>END OF AN OVER</span></div>
               <div className="form-grid">
                 <SelectField id="innings" label="INNINGS" value={form.innings} onChange={change} placeholder="Select innings" options={[{ value: '1', label: '1st innings' }, { value: '2', label: 'Chase (2nd innings)' }]} error={errors.innings} />
                 {form.innings === '2'
@@ -444,20 +478,20 @@ function Predictor({ service, options, onRetry }) {
 
         <div className="result-stack">
           <div className="result-panel inset-panel" aria-live="polite" aria-busy={loading}>
-            <div className="panel-caption">PREDICTION_RESULT.LOG <span>{status}</span></div>
+            <div className="panel-caption">MATCH PREDICTION <span>{status}</span></div>
             {outcome?.result ? (
               <ResultView result={outcome.result} stale={stale} />
             ) : outcome?.error ? (
               <div className="result-alert" role="alert"><span className="alert-icon" aria-hidden="true">!</span><div><strong>{outcome.error.code === 'OFFLINE' ? 'Prediction service offline' : 'Prediction not made'}</strong><p>{outcome.error.message}</p>{outcome.error.requestId && <p className="request-id">Request id: {outcome.error.requestId}</p>}</div></div>
             ) : (
-              <div className="result-empty"><span className="empty-glyph" aria-hidden="true">◎</span><strong>Awaiting match setup</strong><p>Complete the form and press Predict.</p></div>
+              <div className="result-empty"><MatchSetupAnimation /><strong>Awaiting match setup</strong><p>Complete the form and press Predict.</p></div>
             )}
           </div>
           {outcome?.result?.inputs?.length ? (
             <ModelInputs result={outcome.result} />
           ) : (
             <div className="terminal" aria-label="Model inputs">
-              <div className="terminal-header"><span>model_inputs.txt</span><span>● WAITING</span></div>
+              <div className="terminal-header"><span>Model inputs</span><span>● WAITING</span></div>
               <div className="terminal-content"><p><span className="prompt">&gt;</span> Predict a match to see what the model looked at.</p><p className="terminal-muted">Dataset: 2008–2024 / {dataset.matches.toLocaleString()} match rows</p></div>
             </div>
           )}
@@ -467,7 +501,7 @@ function Predictor({ service, options, onRetry }) {
   )
 }
 
-function Findings() {
+function IplStats() {
   const [selectedTeam, setSelectedTeam] = useState('Mumbai Indians')
   const team = teams.find((item) => item.name === selectedTeam)
   const formerNames = Object.entries(franchiseAliases).filter(([, canonical]) => canonical === selectedTeam).map(([former]) => former)
@@ -476,8 +510,8 @@ function Findings() {
   const batRate = Math.round((tossStats.bat.tossWinnerWon / tossStats.bat.matches) * 1000) / 10
 
   return (
-    <Window id="findings" title="findings\ — observed match history" tone="slate">
-      <SectionIntro eyebrow="DATASET EXPLORER / OBSERVED DATA" title="What the scorecards say.">
+    <Window id="findings" title="IPL Stats" icon="scoreboard" tone="slate">
+      <SectionIntro eyebrow="IPL MATCH HISTORY" title="What the scorecards say.">
         Browse match-level summaries from the cleaned 2008–2024 data. These are descriptive counts; they do not indicate what a future match will do.
       </SectionIntro>
       <div className="findings-grid">
@@ -552,28 +586,32 @@ function App() {
       </div>
       <header className="topbar">
         <div className="topbar-inner">
-          <a className="brand" href="#overview"><img className="brand-symbol" src="/infinity-symbol.png" alt="" /><span>IPL ANALYTICS<span className="brand-exe">.EXE</span></span></a>
+          <a className="brand" href="#overview"><img className="brand-symbol" src="/infinity-symbol.png" alt="" /><span>IPL <span className="brand-accent">Match</span></span></a>
           <nav aria-label="Main navigation">{navigation.map(([label, id]) => <a key={id} href={`#${id}`}>{label}</a>)}</nav>        </div>
       </header>
 
       <main className="desktop">
-        <Window id="overview" title="ipl_analytics.exe — match intelligence console" className="hero-window">
+        <Window id="overview" title="IPL Match" icon="bat" className="hero-window">
           <div className="hero-grid">
+            <div className="hero-pitch" aria-hidden="true">
+              <span className="hero-pitch-wicket hero-pitch-wicket--far" />
+              <span className="hero-pitch-wicket hero-pitch-wicket--near" />
+              <span className="hero-pitch-ball" />
+            </div>
             <div className="hero-copy">
               <div className="eyebrow eyebrow-green">● IPL DATA / 2008—2024</div>
               <h1>Read the match.<br /><span>Respect the uncertainty.</span></h1>
               <p>Explore the history behind IPL matchups and estimate each team’s chance of winning, before the first ball or live from the score.</p>
-              <div className="hero-actions"><a className="button button-primary" href="#predictor">Predict a Match <span aria-hidden="true">→</span></a><a className="button" href="#findings">Explore Analytics</a></div>
+              <div className="hero-actions"><a className="button button-primary" href="#predictor">Predict a Match <span aria-hidden="true">→</span></a><a className="button" href="#findings">Explore IPL Stats</a></div>
               <div className="hero-stats"><StatCard number={dataset.matches.toLocaleString()} label="historical matches" note="raw match rows" tone="red" /><StatCard number={`${dataset.firstSeason}–${dataset.lastSeason}`} label="seasons covered" note={`${dataset.seasons} calendar seasons`} tone="green" /><StatCard number="02" label="prediction modes" note="pre-match / live score" tone="blue" /></div>
             </div>
-            <div className="hero-visual" aria-label={`Console preview: data loaded, model ${online ? 'online' : 'offline'}`}>
+            <div className="hero-visual">
               <div className="floating-window">
-                <div className="mini-titlebar"><span>match_status.exe</span><span aria-hidden="true">×</span></div>
+                <div className="mini-titlebar"><span>Match status</span><span className="titlebar-icon titlebar-icon--wicket" aria-hidden="true" /></div>
                 <div className="floating-body">
                   <img className="hero-symbol" src="/infinity-symbol.png" alt="Blue-to-turquoise infinity symbol" />
-                  <div><div className="floating-kicker">SYSTEM CHECK</div><h2>History loaded.<br />{online ? 'Model online.' : 'Model offline.'}</h2><p>{online ? `Release ${service.release} is ready. Predictions use matches up to ${service.cutoff}.` : 'Match records are ready to explore. Start the API to make predictions.'}</p></div>
+                  <div><h2>History loaded.<br />{online ? 'Model online.' : 'Model offline.'}</h2><p>{online ? `Release ${service.release} is ready. Predictions use matches up to ${service.cutoff}.` : 'Match records are ready to explore. Start the API to make predictions.'}</p></div>
                   <div className="floating-status"><Badge variant="green">DATA READY</Badge><ServiceBadge service={service} /></div>
-                  <div className="floating-terminal"><span>&gt; records_loaded: {dataset.matches}</span><span>&gt; franchise_identities: {dataset.franchises}</span><span>&gt; inference_service: {online ? `connected (release ${service.release})` : service.status === 'checking' ? 'checking…' : 'not reachable_'}</span></div>
                 </div>
               </div>
             </div>
@@ -581,21 +619,22 @@ function App() {
           <div className="window-statusbar"><span>● LOCAL DATASET LOADED</span><span>PRE-MATCH + LIVE ANALYTICS / EDUCATIONAL USE</span></div>
         </Window>
 
-        <Window id="how-it-works" title="how_it_works.txt — the prediction pipeline" tone="slate">
+        <Predictor service={service} options={options} onRetry={recheck} />
+        <IplStats />
+
+        <Window id="how-it-works" title="How It Works" icon="pitch" tone="slate">
           <SectionIntro eyebrow="THE PIPELINE / FIVE STEPS" title="From scorecards to a tested model.">A match prediction should come from a documented sequence of data preparation, leakage-safe features, training, inference, and evaluation.</SectionIntro>
           <div className="steps-grid">{steps.map((step) => <article className="step-card" key={step.number}><div className="step-number">STEP {step.number}</div><div className="step-glyph" aria-hidden="true">{step.glyph}</div><h3>{step.title}</h3><p>{step.text}</p></article>)}</div>
         </Window>
 
-        <Predictor service={service} options={options} onRetry={recheck} />
         <BatchPredictor service={service} options={options} />
-        <Findings />
 
-        <Window id="about" title="about_this_project.txt — project notes" tone="slate">
-          <div className="about-grid"><div><SectionIntro eyebrow="ABOUT / COLLEGE PROJECT" title="Built to make predictions explainable.">IPL Cricket Match Winner Prediction is a student project by Hrituraj Roy and Amul Rai. It pairs verified historical summaries with tested models served by a FastAPI backend.</SectionIntro><p className="about-disclaimer"><strong>Educational-use notice:</strong> Historical patterns and model estimates cannot guarantee a match outcome. This project is not intended for betting.</p></div><div className="about-checklist"><div><span>✓</span> Historical franchise names preserved</div><div><span>✓</span> Input checks before inference</div><div><span>✓</span> Models tested on unseen seasons</div><div><span>{online ? '✓' : '○'}</span> FastAPI service {online ? 'connected' : 'not connected'}</div></div></div>
+        <Window id="about" title="About the project" icon="trophy" tone="slate">
+          <div className="about-grid"><div><SectionIntro eyebrow="ABOUT / COLLEGE PROJECT" title="Built to make predictions explainable.">Each prediction shows both teams’ estimated win probabilities and the inputs behind them. Review team form and venue history before the first ball, or check runs needed and balls remaining during a chase.</SectionIntro><p className="about-disclaimer"><strong>Educational-use notice:</strong> Historical patterns and model estimates cannot guarantee a match outcome. This project is not intended for betting.</p></div><div className="about-checklist"><div><span>✓</span> Historical franchise names preserved</div><div><span>✓</span> Input checks before inference</div><div><span>✓</span> Models tested on unseen seasons</div><div><span>{online ? '✓' : '○'}</span> FastAPI service {online ? 'connected' : 'not connected'}</div></div></div>
         </Window>
       </main>
 
-      <footer className="taskbar"><div className="taskbar-inner"><a className="taskbar-start" href="#overview"><img className="taskbar-symbol" src="/infinity-symbol.png" alt="" /> IPL ANALYTICS</a><span className="taskbar-note">IPL Cricket Match Winner Prediction · Student project · Educational use only</span><span className={`taskbar-state ${online ? '' : 'taskbar-offline'}`}>● DATA READY / {online ? 'MODEL ONLINE' : 'MODEL OFFLINE'}</span></div></footer>
+      <footer className="taskbar"><div className="taskbar-inner"><a className="taskbar-start" href="#overview"><img className="taskbar-symbol" src="/infinity-symbol.png" alt="" /> IPL Match</a><span className="taskbar-note">IPL Cricket Match Winner Prediction · Student project · Educational use only</span><span className={`taskbar-state ${online ? '' : 'taskbar-offline'}`}>● DATA READY / {online ? 'MODEL ONLINE' : 'MODEL OFFLINE'}</span></div></footer>
     </>
   )
 }
